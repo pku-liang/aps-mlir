@@ -1,0 +1,6 @@
+// Test let without explicit type annotation (should fail)
+
+rtype test(rs1: u5, rd: u5) {
+    let x = 42;  // Missing type annotation - should error
+    _irf[rd] = x;
+}

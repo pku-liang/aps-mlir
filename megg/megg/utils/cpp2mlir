@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""
+cpp2mlir: Simple tool to convert C/C++ code to MLIR using mlsynthesis.
+
+Usage:
+    cpp2mlir --input <input.c> --mlsynthesis <path-to-mlsynthesis> --output <output.mlir>
+"""
+
+import argparse
+import os
+import sys
+import shutil
+import tempfile
+from pathlib import Path
+
+
+mlsynthesis = "/home/zyy/skyegg/mlsynthesis/build/bin/mlsynthesis"
+resource = "/home/zyy/skyegg/skyegg-py/resources/fake.json"
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Convert C/C++ code to MLIR using mlsynthesis",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Convert C file to MLIR
+  cpp2mlir --input program.c --mlsynthesis /path/to/mlsynthesis --output program.mlir
+
+  # Specify custom resource file
+  cpp2mlir --input program.c --mlsynthesis /path/to/mlsynthesis --output program.mlir --resource custom.json
+        """
+    )
+
+    parser.add_argument(
+        '--input',
+        required=True,
+        type=str,
+        help='Input C/C++ source file'
+    )
+
+    parser.add_argument(
+        '--output',
+        required=True,
+        type=str,
+        help='Output MLIR file'
+    )
+
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Enable verbose output'
+    )
+
+    args = parser.parse_args()
+
+    # Validate input file exists
+    input_path = Path(args.input).absolute()
+    if not input_path.exists():
+        print(f"Error: Input file '{input_path}' not found", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate mlsynthesis binary exists
+    mlsynthesis_path = Path(mlsynthesis).absolute()
+    if not mlsynthesis_path.exists():
+        print(f"Error: mlsynthesis binary '{mlsynthesis_path}' not found", file=sys.stderr)
+        sys.exit(1)
+
+    resource_path = Path(resource).absolute()
+    if not resource_path.exists():
+        print(f"Error: Resource file '{resource_path}' not found", file=sys.stderr)
+        sys.exit(1)
+
+    # Create temp directory for mlsynthesis output
+    temp_dir = tempfile.mkdtemp()
+    mlir_output_base = os.path.join(temp_dir, "output")
+    os.makedirs(mlir_output_base, exist_ok=True)
+
+    try:
+        # Run mlsynthesis
+        mlsynthesis_cmd = (
+            f"{mlsynthesis_path} "
+            f"--input {input_path} "
+            f"--resource {resource_path} "
+            f"--output {Path(mlir_output_base).absolute()} "
+            f"--stop-early "
+            f"--dont-raise-scf-to-affine"
+        )
+
+        if args.verbose:
+            print(f"Running: {mlsynthesis_cmd}")
+
+        ret = os.system(mlsynthesis_cmd)
+        if ret != 0:
+            print(f"Error: mlsynthesis failed with return code {ret}", file=sys.stderr)
+            sys.exit(1)
+
+        # The actual output file is affine-reduced.mlir
+        mlir_generated_path = os.path.join(mlir_output_base, "affine-reduced.mlir")
+
+        if not os.path.exists(mlir_generated_path):
+            print(f"Error: Expected output file {mlir_generated_path} not found", file=sys.stderr)
+            sys.exit(1)
+
+        # Apply mlir-opt normalization passes
+        mlir_temp_path = os.path.join(temp_dir, "normalized.mlir")
+
+        # Find mlir-opt (try multiple locations)
+        mlir_opt = shutil.which("mlir-opt")
+        if mlir_opt is None:
+            # Try common installation paths
+            possible_paths = [
+                "/home/cloud/aps-mlir/install/bin/mlir-opt",
+                "/home/cloud/aps-mlir/circt/build/bin/mlir-opt",
+                "/usr/local/bin/mlir-opt",
+            ]
+            for path in possible_paths:
+                if os.path.exists(path):
+                    mlir_opt = path
+                    break
+
+        if mlir_opt and os.path.exists(mlir_opt):
+            mlir_opt_cmd = (
+                f"{mlir_opt} "
+                f"{mlir_generated_path} "
+                f"--canonicalize "
+                f"--cse "
+                f"--allow-unregistered-dialect "
+                f"--lower-affine "
+                f"-o {mlir_temp_path}"
+            )
+
+            if args.verbose:
+                print(f"Running normalization: {mlir_opt_cmd}")
+
+            ret = os.system(mlir_opt_cmd)
+            if ret == 0:
+                mlir_generated_path = mlir_temp_path
+                if args.verbose:
+                    print("✓ Applied normalization passes")
+            else:
+                if args.verbose:
+                    print(f"Warning: mlir-opt normalization failed, using original output")
+        else:
+            if args.verbose:
+                print("Warning: mlir-opt not found, skipping normalization passes")
+
+        # Copy the generated MLIR to the output location
+        output_path = Path(args.output).absolute()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(mlir_generated_path, output_path)
+
+        if args.verbose:
+            print(f"✓ Successfully generated MLIR: {output_path}")
+
+    finally:
+        # Clean up temp directory
+        shutil.rmtree(temp_dir)
+
+
+if __name__ == "__main__":
+    main()

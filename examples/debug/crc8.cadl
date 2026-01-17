@@ -1,0 +1,18 @@
+#[opcode(7'b0101011)]
+#[funct7(7'b0000000)]
+rtype crc8(rs1: u5, rs2: u5, rd: u5) {
+  let x0: u32 = _irf[rs1];
+  let i0: u32 = 0;
+  let n0: u32 = 8;
+  with
+    i: u32 = (i0, i_)
+    x: u32 = (x0, x_)
+    n: u32 = (n0, n_)
+  do {
+    let a: u32 = (x >> 1);
+    let x_: u32 = a ^ (0xEDB88320  & ~((x&1)-1)); // 3988292384
+    let i_: u32 = i;
+    let n_: u32 = n;
+  } while (i_ < n);
+  _irf[rd] = x;
+}

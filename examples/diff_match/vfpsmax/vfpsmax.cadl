@@ -1,0 +1,143 @@
+// VFPSMAX - Vector FPS Max-Reduce with Index Tracking
+// Finds the maximum value and its index in a vector
+// Used in Farthest Point Sampling (FPS) to select the farthest remaining point
+// Formula: (max_val, max_idx) = argmax(v[0..VL-1])
+// NOTE: Using fixed-point arithmetic with u32 types
+
+// Static arrays for distance tracking and intermediate results
+// Cyclic partitioning with factor=8 for parallel access
+// Double-buffering for reduction stages to avoid read-after-write conflicts
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static indices: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static reduction_vals_in: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static reduction_vals_out: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static reduction_idxs_in: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static reduction_idxs_out: [u32; 16];
+
+// VFPSMAX.V - Find maximum value and index in a vector
+// Returns max value in first element of vd, max index in first element of vid
+#[opcode(7'b0101011)]
+#[funct7(7'b0101010)]
+rtype vfpsmax_v(rs1: u5, rs2: u5, rd: u5) {
+  let addr: u32 = _irf[rs1];  // Base address of distance array
+  let out_addr: u32 = _irf[rs2];
+  let vl: u32 = 16;            // Vector length
+
+  // Burst read distances from memory into input buffer
+  reduction_vals_in[0 +: ] = _burst_read[addr +: 16];
+
+  // Initialize indices [0, 1, 2, ..., VL-1]
+  [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    indices[i] = i;
+    reduction_idxs_in[i] = i;
+    let i_: u32 = i + 1;
+  } while (i_ < 16);
+
+  // Stage 1: 8 comparisons (16→8) - Read from _in, write to _out
+  [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    let idx1: u32 = i * 2;
+    let idx2: u32 = i * 2 + 1;
+    let val1: u32 = reduction_vals_in[idx1];
+    let val2: u32 = reduction_vals_in[idx2];
+
+    // Use sentinel value 0 (minimum unsigned value)
+    let is_sentinel1: u1 = if val1 == 0 {1} else {0};
+    let is_sentinel2: u1 = if val2 == 0 {1} else {0};
+
+    let max_val: u32 = if is_sentinel1 {
+      val2
+    } else {
+      if is_sentinel2 {val1} else {if val1 > val2 {val1} else {val2}}
+    };
+
+    let reduction_idxs_in_idx2: u32 = reduction_idxs_in[idx2];
+    let reduction_idxs_in_idx1: u32 = reduction_idxs_in[idx1];
+    let max_idx: u32 = if is_sentinel1 {
+      reduction_idxs_in_idx2
+    } else {
+      if is_sentinel2 {
+        reduction_idxs_in_idx1
+      } else {
+        if val1 > val2 {reduction_idxs_in_idx1} else {reduction_idxs_in_idx2}
+      }
+    };
+
+    reduction_vals_out[i] = max_val;
+    reduction_idxs_out[i] = max_idx;
+    let i_: u32 = i + 1;
+  } while (i_ < 8);
+
+  // Stage 2: 4 comparisons (8→4) - Read from _out, write to _in
+  [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    let idx1: u32 = i * 2;
+    let idx2: u32 = i * 2 + 1;
+    let val1: u32 = reduction_vals_out[idx1];
+    let val2: u32 = reduction_vals_out[idx2];
+
+    let max_val: u32 = if val1 > val2 {val1} else {val2};
+
+    let reduction_idxs_out_idx1: u32 = reduction_idxs_out[idx1];
+    let reduction_idxs_out_idx2: u32 = reduction_idxs_out[idx2];
+    let max_idx: u32 = if val1 > val2 {reduction_idxs_out_idx1} else {reduction_idxs_out_idx2};
+
+    reduction_vals_in[i] = max_val;
+    reduction_idxs_in[i] = max_idx;
+    let i_: u32 = i + 1;
+  } while (i_ < 4);
+
+  // Stage 3: 2 comparisons (4→2) - Read from _in, write to _out
+  [[unroll(2)]]
+  with i: u32 = (0, i_) do {
+    let idx1: u32 = i * 2;
+    let idx2: u32 = i * 2 + 1;
+    let val1: u32 = reduction_vals_in[idx1];
+    let val2: u32 = reduction_vals_in[idx2];
+
+    let max_val: u32 = if val1 > val2 {val1} else {val2};
+
+    let reduction_idxs_in_idx1: u32 = reduction_idxs_in[idx1];
+    let reduction_idxs_in_idx2: u32 = reduction_idxs_in[idx2];
+    let max_idx: u32 = if val1 > val2 {reduction_idxs_in_idx1} else {reduction_idxs_in_idx2};
+
+    reduction_vals_out[i] = max_val;
+    reduction_idxs_out[i] = max_idx;
+    let i_: u32 = i + 1;
+  } while (i_ < 2);
+
+  // Stage 4: Final comparison (2→1) - Read from _out (simplified for testing)
+  let val1: u32 = reduction_vals_out[0];
+  let val2: u32 = reduction_vals_out[1];
+  let final_max: u32 = if val1 > val2 {val1} else {val2};
+
+  let reduction_idxs_out_0: u32 = reduction_idxs_out[0];
+  let reduction_idxs_out_1: u32 = reduction_idxs_out[1];
+  let final_idx: u32 = if val1 > val2 {reduction_idxs_out_0} else {reduction_idxs_out_1};
+
+  // Store results to register and memory
+  _irf[rd] = final_idx;
+
+  // Write max value and index to memory for further processing
+  _mem[out_addr] = final_max;
+  _mem[out_addr + 4] = final_idx;
+}

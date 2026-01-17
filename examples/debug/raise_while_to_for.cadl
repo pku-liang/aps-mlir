@@ -1,0 +1,145 @@
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype crc8_type1(data: u8) {
+//     with
+//         i: u8 = (0, i + 1) 
+//         crc: u8 = (0, crc_)
+//     do {   // look here, the i is initialized to 0, and carry through the loop, then + 1
+//         let bit: u1 = (data >> i) & 1;
+//         let xor_val: u8 = if bit == 1 {0x8C} else {0};
+//         let crc_: u8 = crc ^ xor_val;
+//         crc_ = crc_ << 1;
+//     } while i + 1 < 8; // the loop condition is the comparison of i_ with 8 (a constant)
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype crc8_type2(data: u8) {
+//     with
+//         i: u8 = (0, i_) 
+//         crc: u8 = (0, crc_)
+//     do { // look here, the i is initialized to 0, and carry through the loop
+//         let bit: u1 = (data >> i) & 1;
+//         let xor_val: u8 = if bit == 1 {0x8C} else {0};
+//         let crc_: u8 = crc ^ xor_val;
+//         crc_ = crc_ << 1;
+//         i_ = i + 1; // increment i
+//     } while i_ < 8; // the loop condition is the comparison of i_ with 8 (a constant)
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype crc8_type3(data: u8) {
+//     let i0: u8 = 8;
+//     let n0: u8 = 8;
+//     let iend: u8 = 0;
+
+//     with
+//         i: u8 = (i0, i_) 
+//         crc: u8 = (0, crc_)
+//     do {
+//         let bit: u1 = (data >> i) & 1;
+//         let xor_val: u8 = if bit == 1 {0x8C} else {0};
+//         let crc_: u8 = crc ^ xor_val;
+//         crc_ = crc_ << 1;
+//         i_ = i - 1;
+//     } while i_ > iend;
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype crc8_type3_2(data: u8) {
+//     let i0: u8 = 8;
+//     let n0: u8 = 8;
+//     let iend: u8 = 0;
+
+//     with
+//         i: u8 = (i0, i_) 
+//         crc: u8 = (0, crc_)
+//     do {
+//         let bit: u1 = (data >> i) & 1;
+//         let xor_val: u8 = if bit == 1 {0x8C} else {0};
+//         let crc_: u8 = crc ^ xor_val;
+//         crc_ = crc_ << 1;
+//         i_ = i - 1;
+//     } while i_ != iend;
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype crc8_type3_2(data: u8) {
+//     with
+//         i: u8 = (0, i_) 
+//         crc: u8 = (0, crc_)
+//     do {
+//         let bit: u1 = (data >> i) & 1;
+//         let xor_val: u8 = if bit == 1 {0x8C} else {0};
+//         let crc_: u8 = crc ^ xor_val;
+//         crc_ = crc_ << 1;
+//         i_ = i + 1;
+//     } while i_ <= 8;
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype crc8_type3_fail_2(data: u8) {
+//     let i0: u8 = 8;
+//     let n0: u8 = 8;
+//     let iend: u8 = 0;
+
+//     with
+//         i: u8 = (i0, i_) 
+//         crc: u8 = (0, crc_)
+//     do {
+//         let bit: u1 = (data >> i) & 1;
+//         let xor_val: u8 = if bit == 1 {0x8C} else {0};
+//         let crc_: u8 = crc ^ xor_val;
+//         crc_ = crc_ << 1;
+//         i_ = i - 1;
+//     } while i_ == iend;
+// }
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000000)]
+rtype crc8_with_unroll(data: u8) {
+    [[unroll(4)]]
+    with
+        i: u8 = (0, i + 1) 
+        crc: u8 = (0, crc_)
+    do {   // look here, the i is initialized to 0, and carry through the loop, then + 1
+        let bit: u1 = (data >> i) & 1;
+        let xor_val: u8 = if bit == 1 {0x8C} else {0};
+        let crc_: u8 = crc ^ xor_val;
+        crc_ = crc_ << 1;
+    } while i + 1 < 8; // the loop condition is the comparison of i_ with 8 (a constant)
+}
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype crc8_type3_fail(data: u8) {
+//     let crc: u8 = 0;
+//     let i0: u8 = 8;
+//     let n0: u8 = 8;
+//     let iend: u8 = 0;
+
+//     // i0 = data;
+//     i0 = 3;
+//     with
+//         i: u8 = (i0, i_) 
+//     do {
+//         let bit: u1 = (data >> i) & 1;
+//         let xor_val: u8 = if bit == 1 {0x8C} else {0};
+//         crc = crc ^ xor_val;
+//         crc = crc << 1;
+//         i_ = i - 1;
+//         // iend = data;
+//     } while i_ > iend;
+// }
+
+// # scf.for has following structure in MLIR:
+// scf.for %i = 0 to 128 step %c1 {
+//   %y = scf.execute_region -> i32 {
+//     %x = load %A[%i] : memref<128xi32>
+//     scf.yield %x : i32
+//   }
+// }

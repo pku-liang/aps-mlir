@@ -1,0 +1,134 @@
+// Example demonstrating select expressions in CADL
+
+// Simple select for categorization
+#[opcode(7'b0101011)]
+#[funct7(7'b0010000)]
+rtype categorize(rs1: u5, rs2: u5, rd: u5) {
+  let value: u32 = _irf[rs1];
+
+  // Categorize value into ranges
+  let category: u32 = sel {
+    value == 0: 0,
+    value < 10: 1,
+    value < 100: 2,
+    value < 1000: 3,
+    value >= 1000: 4,
+  };
+
+  _irf[rd] = category;
+}
+
+// Select with computed values
+#[opcode(7'b0101011)]
+#[funct7(7'b0010001)]
+rtype compute_function(rs1: u5, rs2: u5, rd: u5) {
+  let x: u32 = _irf[rs1];
+  let mode: u32 = _irf[rs2];
+
+  // Different computations based on mode
+  let result: u32 = sel {
+    mode == 0: x + 10,
+    mode == 1: x * 2,
+    mode == 2: x << 1,
+    mode == 3: x >> 1,
+    mode >= 4: x,
+  };
+
+  _irf[rd] = result;
+}
+
+// Select for sign extension behavior
+#[opcode(7'b0101011)]
+#[funct7(7'b0010010)]
+rtype sign_extend(rs1: u5, rs2: u5, rd: u5) {
+  let value: u32 = _irf[rs1];
+  let width: u32 = _irf[rs2];
+
+  // Different sign extension based on width
+  let extended: u32 = sel {
+    width == 8: value[7:0],
+    width == 16: value[15:0],
+    width == 24: value[23:0],
+    width >= 32: value,
+  };
+
+  _irf[rd] = extended;
+}
+
+// Nested select for 2D categorization
+#[opcode(7'b0101011)]
+#[funct7(7'b0010011)]
+rtype classify_2d(rs1: u5, rs2: u5, rd: u5) {
+  let x: u32 = _irf[rs1];
+  let y: u32 = _irf[rs2];
+
+  // Classify point into quadrants with special cases
+  let quadrant: u32 = sel {
+    (x == 0) && (y == 0): 0,
+    (x > 0) && (y > 0): 1,
+    (x < 0) && (y > 0): 2,
+    (x < 0) && (y < 0): 3,
+    (x > 0) && (y < 0): 4,
+  };
+
+  _irf[rd] = quadrant;
+}
+
+// Select for priority encoder
+#[opcode(7'b0101011)]
+#[funct7(7'b0010100)]
+rtype priority_encode(rs1: u5, rs2: u5, rd: u5) {
+  let bits: u32 = _irf[rs1];
+
+  // Find highest set bit (priority encoding)
+  let position: u32 = sel {
+    bits[31:31] == 1: 31,
+    bits[30:30] == 1: 30,
+    bits[29:29] == 1: 29,
+    bits[28:28] == 1: 28,
+    bits[27:27] == 1: 27,
+    bits[26:26] == 1: 26,
+    bits[25:25] == 1: 25,
+    bits[24:24] == 1: 24,
+    1: 0,
+  };
+
+  _irf[rd] = position;
+}
+
+// Select with memory operations
+#[opcode(7'b0101011)]
+#[funct7(7'b0010101)]
+rtype memory_select(rs1: u5, rs2: u5, rd: u5) {
+  let addr: u32 = _irf[rs1];
+  let selector: u32 = _irf[rs2];
+
+  // Select different memory locations based on selector
+  let data: u32 = sel {
+    selector == 0: _mem[addr],
+    selector == 1: _mem[addr + 4],
+    selector == 2: _mem[addr + 8],
+    selector >= 3: _mem[addr + 12],
+  };
+
+  _irf[rd] = data;
+}
+
+// Select for lookup table alternative
+#[opcode(7'b0101011)]
+#[funct7(7'b0010110)]
+rtype lookup(rs1: u5, rs2: u5, rd: u5) {
+  let index: u32 = _irf[rs1];
+
+  // Small lookup table using select
+  let value: u32 = sel {
+    index == 0: 100,
+    index == 1: 200,
+    index == 2: 300,
+    index == 3: 400,
+    index == 4: 500,
+    index >= 5: 0,
+  };
+
+  _irf[rd] = value;
+}

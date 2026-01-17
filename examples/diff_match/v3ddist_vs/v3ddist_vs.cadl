@@ -1,0 +1,70 @@
+// V3DDIST.VS - Vector 3D Distance Squared (Vector-Scalar mode)
+// Computes squared Euclidean distance from VL points to a single reference point
+// Formula: dist² = (x-ref_x)² + (y-ref_y)² + (z-ref_z)²
+// NOTE: Using fixed-point arithmetic with u32 types
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points_x: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points_y: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points_z: [u32; 16];
+
+// Output distance array - complete partitioning for parallel access
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static dist_out: [u32; 16];
+
+// V3DDIST.VS - Vector-Scalar mode
+// Computes distances from VL points to a single reference point
+#[opcode(7'b0101011)]
+#[funct7(7'b0101001)]
+rtype v3ddist_vs(rs1: u5, rs2: u5, rd: u5) {
+  let addr: u32 = _irf[rs1];      // Base address for point set
+  let out_addr: u32 = _irf[rs2];  // Address of output addr
+  let vl: u32 = 16;                // Vector length
+
+  // Burst read point coordinates from memory (SOA layout)
+  points_x[0 +: ] = _burst_read[addr +: 16];
+  points_y[0 +: ] = _burst_read[addr + 64 +: 16];   // 16 words × 4 bytes
+  points_z[0 +: ] = _burst_read[addr + 128 +: 16];  // 2 × 16 words × 4 bytes
+
+  // Read reference point (scalar broadcast)
+  let ref_x: u32 = _mem[addr + 192];
+  let ref_y: u32 = _mem[addr + 196];
+  let ref_z: u32 = _mem[addr + 200];
+
+  // Compute distances to reference point with partial unrolling
+  [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    let x: u32 = points_x[i];
+    let y: u32 = points_y[i];
+    let z: u32 = points_z[i];
+
+    // Compute differences from reference (unsigned subtraction)
+    let dx: u32 = x - ref_x;
+    let dy: u32 = y - ref_y;
+    let dz: u32 = z - ref_z;
+
+    // Compute squared distance
+    let dist_sq: u32 = dx * dx + dy * dy + dz * dz;
+
+    dist_out[i] = dist_sq;
+
+    let i_: u32 = i + 1;
+  } while (i_ < vl);
+
+  // Burst write results back to memory
+  _burst_write[out_addr +: 16] = dist_out[0 +: ];
+
+  _irf[rd] = 0;
+}

@@ -1,0 +1,270 @@
+// Ported from `gcd.cadl` with newest CADL grammar
+
+
+// #[opcode(7'b0101011)] // custom1
+// #[funct7(7'b1111111)]
+// rtype simd_add(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs2];
+//   _irf[rd] = {
+//       (r1[31:24] + r2[31:24])[7:0],
+//       (r1[23:16] + r2[23:16])[7:0],
+//       (r1[15: 8] + r2[15: 8])[7:0],
+//       (r1[ 7: 0] + r2[ 7: 0])[7:0]
+//   };
+// }
+
+// rtype constant(rs1: u5, rs2: u5, rd: u5) {
+//   let r0: u32 = 0;
+// }
+// 
+// #[opcode(7'b0001011)] // custom0
+// #[funct7(7'b0000000)]
+// rtype add(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs2];
+//   _irf[rd] = r1 + r2;
+// }
+
+// #[opcode(7'b0001011)] // custom0
+// #[funct7(7'b0000000)]
+// rtype many_mult(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs2];
+//   _irf[rd] = r1 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2 * r2;
+// }
+
+// #[opcode(7'b1011011)] // custom2
+// #[funct7(7'b1111111)]
+// rtype if_test(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs2];
+//   _irf[rd] = if r1 > 32'd6 {r1} else {r2};
+// }
+
+
+// !!! MATCH IS REMOVED IN THIS VERSION OF ADL !!!
+// !!!     THIS INSTRUCTION IS INVALID         !!!
+// #[opcode(7'b0000000)]
+// #[funct7(7'b1111110)]
+// rtype match_test(rs1: u5, rs2: u5, rd: u5) {
+//     let r1: u32 = _irf[rs1];
+//     let r2: u32 = _irf[rs2];
+//     _irf[rd] = match r1[1:0] {
+//         0 => r2[ 7: 0],
+//         1 => r2[15: 8],
+//         2 => r2[23:16],
+//         3 => r2[31:24],
+//     };
+// }
+
+
+// #[opcode(7'b1011011)] // custom2
+// #[funct7(7'b1111100)]
+// rtype loop_test(rs1: u5, rs2: u5, rd: u5) {
+//   let sum0: u32 = _irf[rs1];
+//   let i0: u32 = 0;
+//   let n0: u32 = _irf[rs2];
+//   with 
+//     i: u32 = (i0, i_)
+//     sum: u32 = (sum0, sum_)
+//     n: u32 = (n0, n_)
+//   do {
+//     let n_: u32 = n;
+//     let sum_: u32 = sum + 4;
+//     let i_: u32 = i + 1;
+//   } while (i_ < n);
+
+//   _irf[rd] = sum; // 4 * (rs2 - 1) + rs1
+// }
+
+
+// #[opcode(7'b1011011)] // custom2
+// #[funct7(7'b1111100)]
+// rtype many_add_test(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs2];
+//   let d1: u32 = r1 + r2;
+//   let d2: u32 = d1 + r1;
+//   let d3: u32 = d2 + r1;
+//   let d4: u32 = d3 + r1;
+//   let d5: u32 = d4 + r1;
+//   let d6: u32 = d5 + r1;
+//   let d7: u32 = d6 + r1;
+//   let d8: u32 = d7 + r1;
+//   _irf[rd] = d8;
+// }
+
+// #[opcode(7'b1011011)] // custom2
+// #[funct7(7'b0000000)]
+// rtype mem_simplewrite(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   _mem[r1] = _irf[rs2];
+//   _irf[rd] = 1437;
+// }
+
+
+// #[opcode(7'b1011011)] // custom2
+// #[funct7(7'b0000000)]
+// rtype mem_read_(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs2];
+//   let rst: u32 = _mem[r1 + r2];
+//   _irf[rd] = rst;
+// }
+
+// #[opcode(7'b0000000)]
+// #[funct7(7'b0000000)]
+// rtype mem_write(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs2];
+//   let a: u32 = r1 + r2;
+//   _mem[r1] = a;
+//   _irf[rd] = a + r2;
+// }
+// 
+
+// #[opcode(7'b1011011)] // custom2
+// #[funct7(7'b0000000)]
+// rtype accum(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let a : u32 = _mem[r1];
+//   let b : u32 = _mem[r1 + 4];
+//   let c : u32 = _mem[r1 + 8];
+//   let d : u32 = _mem[r1 + 12];
+//   let rst: u32 = a + b + c + d;
+//   _mem[r1 + 16] = rst;
+//   _irf[rd] = rst;
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype crc8(rs1: u5, rs2: u5, rd: u5) {
+//   let x0: u32 = _irf[rs1];
+//   let i0: u32 = 0;
+//   let n0: u32 = 8;
+//   with
+//     i: u32 = (i0, i_)
+//     x: u32 = (x0, x_)
+//     n: u32 = (n0, n_)
+//   do {
+//     let a: u32 = (x >> 1);
+//     let x_: u32 = a ^ (0xEDB88320  & ~((x&1)-1)); // 3988292384
+//     let i_: u32 = i;
+//     let n_: u32 = n;
+//   } while (i < n);
+//   _irf[rd] = x;
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype cplx_mult(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: i32 = _irf[rs1];
+//   let r2: i32 = _irf[rs2];
+// 
+//   let ar: i16 = r1[31:16];
+//   let ai: i16 = r1[15:0];
+//   let br: i16 = r2[31:16];
+//   let bi: i16 = r2[15:0];
+//   let zr: i32 = ar * br - ai * bi;
+//   let zi: i32 = ai * br + ar * bi;
+//   _irf[rd] = {zr[15:0], zi[15:0]};
+// }
+
+// static addr: u32 = 0;
+// 
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype autoinc(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs2];
+//   addr = if r2 == 0 {addr + 4} else {r1};
+//   _irf[rd] = _mem[addr];
+// }
+
+
+// static st: u32 = 0;
+// 
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype state_priority(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let mr1: u32 = _mem[r1];
+//   _irf[rd] = mr1 + st;
+//   st = st + 1;
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype shift_test(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   _irf[rd] = r1 << 1;
+// }
+
+#[impl("regs")]
+static thetas: [u32; 8] = {1474560, 870484, 459940, 233473, 117189, 58652, 29333, 14667};
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000000)]
+rtype cordic(rs1: u5, rs2: u5, rd: u5) {
+    let x0 : u32 = 19898;
+    let y0 : u32 = 0;
+    let z0 : u32 = _irf[rs1];
+    let n0 : u32 = 8;
+    let it0: u32 = 0;
+    with
+      it: u32 = (it0, it_)
+      x: u32 = (x0, x_)
+      y: u32 = (y0, y_)
+      z: u32 = (z0, z_)
+      n: u32 = (n0, n_)
+    do {
+      let z_neg: u1  = z[31:31];
+      let theta: u32 = thetas[it];
+      let x_shift: u32 = x >> it;
+      let y_shift: u32 = y >> it;
+      let x_ : u32 = if z_neg {x + y_shift} else {x - y_shift};
+      let y_ : u32 = if z_neg {y - x_shift} else {y + x_shift};
+      let z_ : u32 = if z_neg {z + theta} else {z - theta};
+      let it_: u32 = it + 1;
+      let n_ : u32 = n;
+    } while (it < n);
+
+    _irf[rd] = y;
+}
+
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype stream_stateful(rs1: u5, rs2: u5, rd: u5) {
+//   let s0: u32 = _irf[rs1];
+//   let d0: u32 = _irf[rs2];
+//   let it0: u32 = 0;
+//   let n0: u32 = 8;
+//   with
+//     s: u32 = (s0, s_)
+//     d: u32 = (d0, d_)
+//     it: u32 = (it0, it_)
+//     n: u32 = (n0, n_)
+//   do {
+//     let mem1: u32 = _mem[s];
+//     let mem2: u32 = _mem[s + 4];
+//     _mem[d] = mem1 + mem2;
+//     let s_: u32 = s + 8;
+//     let d_: u32 = d + 4;
+//     let it_: u32 = it + 1;
+//     let n_: u32 = n;
+//   } while (it < n);
+//   
+//   _irf[rd] = 1;
+// }
+
+// #[opcode(7'b0101011)]
+// #[funct7(7'b0000000)]
+// rtype multiple_rs_read(rs1: u5, rs2: u5, rd: u5) {
+//   let r1: u32 = _irf[rs1];
+//   let r2: u32 = _irf[rs1];
+//   let r3: u32 = _irf[rs2];
+//   let r4: u32 = _irf[rs2];
+//   _irf[rd] = r1 + r2 + r3 + r4;
+// }

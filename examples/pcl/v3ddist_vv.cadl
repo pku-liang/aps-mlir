@@ -1,0 +1,92 @@
+// V3DDIST.VV - Vector 3D Distance Squared (Vector-Vector mode)
+// Computes squared Euclidean distance between pairs of 3D points
+// Formula: dist² = (x₂-x₁)² + (y₂-y₁)² + (z₂-z₁)²
+// NOTE: Using fixed-point arithmetic with u32 types
+
+// Static arrays for 3D point coordinates (Structure-of-Arrays layout)
+// Using 1rw port specification for single-port RAM
+// Cyclic partitioning with factor=16 for parallel vector lane access
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points1_x: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points1_y: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points1_z: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points2_x: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points2_y: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points2_z: [u32; 16];
+
+// Output distance array - complete partitioning for parallel access
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static dist_out: [u32; 16];
+
+// V3DDIST.VV - Vector-Vector mode
+// Computes distances between VL pairs of 3D points
+#[opcode(7'b0001011)]
+#[funct7(7'b0101000)]
+rtype v3ddist_vv(rs1: u5, rs2: u5, rd: u5) {
+  let addr1: u32 = _irf[rs1];  // Base address for first point set
+  let out_addr: u32 = _irf[rs2];  // Base address for second point set
+  let vl: u32 = 16;             // Vector length
+
+  // Burst read point coordinates from memory (SOA layout)
+  points1_x[0 +: ] = _burst_read[addr1 +: 16];
+  points1_y[0 +: ] = _burst_read[addr1 + 64 +: 16];   // 16 words × 4 bytes
+  points1_z[0 +: ] = _burst_read[addr1 + 128 +: 16];  // 2 × 16 words × 4 bytes
+
+  points2_x[0 +: ] = _burst_read[addr1 + 192 +: 16];
+  points2_y[0 +: ] = _burst_read[addr1 + 256 +: 16];
+  points2_z[0 +: ] = _burst_read[addr1 + 320 +: 16];
+
+  // Compute distances for all vector elements with partial unrolling
+  [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    let x1: u32 = points1_x[i];
+    let y1: u32 = points1_y[i];
+    let z1: u32 = points1_z[i];
+
+    let x2: u32 = points2_x[i];
+    let y2: u32 = points2_y[i];
+    let z2: u32 = points2_z[i];
+
+    // Compute differences (unsigned subtraction)
+    let dx: u32 = x1 - x2;
+    let dy: u32 = y1 - y2;
+    let dz: u32 = z1 - z2;
+
+    // Compute squared distance
+    let dist_sq: u32 = dx * dx + dy * dy + dz * dz;
+
+    dist_out[i] = dist_sq;
+
+    let i_: u32 = i + 1;
+  } while (i_ < vl);
+
+  // Burst write results back to memory
+  _burst_write[out_addr +: 16] = dist_out[0 +: ];
+
+  _irf[rd] = 0;
+}

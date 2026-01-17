@@ -1,0 +1,61 @@
+// V3DDIST.VV - Vector 3D Distance Squared (Vector-Vector mode)
+// Computes squared Euclidean distance between pairs of 3D points
+// Formula: dist² = (x₂-x₁)² + (y₂-y₁)² + (z₂-z₁)²
+
+static x1_data: [u32; 16];
+static y1_data: [u32; 16];
+static z1_data: [u32; 16];
+static x2_data: [u32; 16];
+static y2_data: [u32; 16];
+static z2_data: [u32; 16];
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0101000)]
+rtype v3ddist_vv(rs1: u5, rs2: u5, rd: u5) {
+  let addr1: u32 = _irf[rs1];     // Base address for input coordinates
+  let out_addr: u32 = _irf[rs2];  // Base address for output distances
+  let vl: u32 = 16;               // Vector length
+
+  x1_data[0 +: ] = _burst_read[addr1 +: 16];
+  y1_data[0 +: ] = _burst_read[addr1 + 64 +: 16];
+  z1_data[0 +: ] = _burst_read[addr1 + 128 +: 16];
+  x2_data[0 +: ] = _burst_read[addr1 + 192 +: 16];
+  y2_data[0 +: ] = _burst_read[addr1 + 256 +: 16];
+  z2_data[0 +: ] = _burst_read[addr1 + 320 +: 16];
+
+  // Tiled loop: outer loop iterates by 4, inner loop processes each element
+  with ib: u32 = (0, ib_) do {
+    let i_end: u32 = ib + 4;      // Tile end position
+
+    with i: u32 = (ib, i_) do {
+      let x1: i32 = rs1[i];
+      let y1: i32 = rs1[16 + i];
+      let z1: i32 = rs1[32 + i];
+      
+      let x2: i32 = rs1[48 + i];
+      let y2: i32 = rs1[64 + i];
+      let z2: i32 = rs1[80 + i];
+      
+      let dx: i32 = x1 - x2;
+      let dx2: i32 = dx * dx;
+
+      let dy: i32 = y1 - y2;
+      let dy2: i32 = dy * dy;
+
+      let dz: i32 = z1 - z2;
+      let dz2: i32 = dz * dz;
+
+      let dist2: i32 = dx2 + dy2 + dz2;
+
+      rs2[i] = dist2;
+
+      let i_: u32 = i + 1;
+    } while (i_ < i_end);
+
+    let ib_: u32 = ib + 4;
+  } while (ib_ < 16);
+
+  _burst_write[out_addr +: 16] = x1_data[0 +: ];
+
+  _irf[rd] = 0;
+}

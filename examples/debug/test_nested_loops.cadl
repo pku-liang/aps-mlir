@@ -1,0 +1,34 @@
+// Test 6: Nested loops with array operations
+// Tests: complex control flow, multiple array accesses
+
+static matrix: [u32; 16];  // 4x4 matrix
+static result: [u32; 4];   // result vector
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000101)]
+rtype matrix_row_sum(rs1: u5, rd: u5) {
+    // Load matrix
+    let addr: u32 = _irf[rs1];
+    matrix[0 +: ] = _burst_read[addr +: 16];
+
+    // Compute row sums
+    with row: u32 = (0, row_) do {
+        let sum: u32 = 0;
+
+        with col: u32 = (0, col_) do {
+            let idx: u32 = row * 4;
+            let idx2: u32 = idx + col;
+            let val: u32 = matrix[idx2];
+            let new_sum: u32 = sum + val;
+            sum = new_sum;
+            let col_: u32 = col + 1;
+        } while (col_ < 4);
+
+        result[row] = sum;
+        let row_: u32 = row + 1;
+    } while (row_ < 4);
+
+    // Return first row sum
+    let first_sum: u32 = result[0];
+    _irf[rd] = first_sum;
+}

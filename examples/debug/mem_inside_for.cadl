@@ -1,0 +1,9 @@
+static acc: u32 = 0;
+
+rtype mem_inside_for (r1: u5, r2: u5, rd: u5) {
+    with i: u5 = (0, i_) do {
+        let i_: u5 = i + 1;
+        acc = acc + _mem[i];
+    } while (i_ < 4);
+    _irf[rd] = acc;
+}

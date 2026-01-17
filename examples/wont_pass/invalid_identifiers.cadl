@@ -1,0 +1,18 @@
+// Invalid identifiers and keywords
+
+rtype 123test(rs1: u5, rd: u5) {  // Identifier starting with number
+    let x: u32 = 42;
+    _irf[rd] = x;
+}
+
+rtype test-name(rs1: u5, rd: u5) {  // Hyphens not allowed in identifiers
+    let x: u32 = 42;
+    _irf[rd] = x;
+}
+
+rtype let(rs1: u5, rd: u5) {  // Using keyword as identifier
+    let if: u32 = 42;  // Using keyword as variable name
+    _irf[rd] = if;
+}
+
+static while: u32 = 0;  // Using keyword as static variable name

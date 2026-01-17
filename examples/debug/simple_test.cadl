@@ -1,0 +1,14 @@
+regfile rf(32, 16);
+
+static counter: u32 = 0;
+
+fn add_helper(a: u32, b: u32) -> (u32) {
+    return (a + b);
+}
+
+#[opcode(7'b0101011)]
+rtype simple_add(rs1: u5, rs2: u5, rd: u5) {
+    let r1: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    _irf[rd] = add_helper(r1, r2);
+}

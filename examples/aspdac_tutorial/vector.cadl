@@ -1,0 +1,83 @@
+
+// ============================================================================
+// Vector Operations - Vector Add/Sub/Mul
+// ============================================================================
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000000)]
+rtype vecaddsub128_i8(rs1: u5, rs2: u5, rd: u5) { // add two i8 AB tile, store to one i16 D tile (compacted)
+    let r1: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+
+    let offsetA: u16 = r1 >> 16;
+    let offsetB: u16 = r1 & 32'hFFFF;
+    let offsetD: u16 = r2 & 32'hFFFF;
+    let config: u16 = r2 >> 16;
+
+    let addsub: u1 = (config & 16'h0100) >> 16; // 0: add, 1: sub
+    let constval: u8 = config & 16'h00FF;
+
+    [[unroll(8)]]
+    with i: u32 = (0, i_) do {
+        let u1_a_idx: u32 = i * 2 + offsetA * 64;
+        let u1_a_val: u8 = matA[u1_a_idx];
+        let u1_b_idx: u32 = i * 2 + offsetB * 64;
+        let u1_b_val: u8 = matB[u1_b_idx];
+        let u1_b_val_masked: u8 = if (constval != 0) {constval} else {u1_b_val};
+
+        let u2_a_idx: u32 = u1_a_idx + 1;
+        let u2_a_val: u8 = matA[u2_a_idx];
+        let u2_b_idx: u32 = u1_b_idx + 1;
+        let u2_b_val: u8 = matB[u2_b_idx];
+        let u2_b_val_masked: u8 = if (constval != 0) {constval} else {u2_b_val};
+
+        let d_idx: u32 = i + offsetD * 32;
+        let u1_d_val: u8 = if (addsub == 0) {u1_a_val + u1_b_val_masked} else {u1_a_val - u1_b_val_masked};
+        let u2_d_val: u8 = if (addsub == 0) {u2_a_val + u2_b_val_masked} else {u2_a_val - u2_b_val_masked};
+
+        let d_val: i16 = (u2_d_val << 8) + u1_d_val; // little-endian, concat two u8 to u16
+        matC[d_idx] = d_val;
+        let i_: u32 = i + 1;
+    } while (i_ < 64);
+
+    _irf[rd] = 0;
+}
+
+
+#[opcode(7'b1011011)]
+#[funct7(7'b0000000)]
+rtype vecmul128_i8(rs1: u5, rs2: u5, rd: u5) { // multiply two i8 AB tile, store to one i16 D tile (compacted)
+    let r1: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+
+    let offsetA: u16 = r1 >> 16;
+    let offsetB: u16 = r1 & 32'hFFFF;
+    let offsetD: u16 = r2 & 32'hFFFF;
+    let config: u16 = r2 >> 16;
+    let constval: i8 = config & 16'h00FF;
+
+    [[unroll(4)]]
+    with i: u32 = (0, i_) do {
+        let u1_a_idx: u32 = i * 2 + offsetA * 64;
+        let u1_a_val: i8 = matA[u1_a_idx];
+        let u1_b_idx: u32 = i * 2 + offsetB * 64;
+        let u1_b_val: i8 = matB[u1_b_idx];
+        let u1_b_val_masked: i8 = if (constval != 0) {constval} else {u1_b_val};
+
+        let u2_a_idx: u32 = u1_a_idx + 1;
+        let u2_a_val: i8 = matA[u2_a_idx];
+        let u2_b_idx: u32 = u1_b_idx + 1;
+        let u2_b_val: i8 = matB[u2_b_idx];
+        let u2_b_val_masked: i8 = if (constval != 0) {constval} else {u2_b_val};
+
+        let d_idx: u32 = i + offsetD * 32;
+        let u1_d_val: i8 = u1_a_val * u1_b_val_masked;
+        let u2_d_val: i8 = u2_a_val * u2_b_val_masked;
+
+        let d_val: i16 = (u2_d_val << 8) + u1_d_val; // little-endian, concat two u8 to u16
+        matC[d_idx] = d_val;
+        let i_: u32 = i + 1;
+    } while (i_ < 64);
+
+    _irf[rd] = 0;
+}

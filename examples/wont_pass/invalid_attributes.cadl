@@ -1,0 +1,26 @@
+// Invalid attributes
+
+#[invalid_attr]  // Unknown attribute
+rtype test1(rs1: u5, rd: u5) {
+    _irf[rd] = 42;
+}
+
+#[opcode(]  // Missing closing paren
+rtype test2(rs1: u5, rd: u5) {
+    _irf[rd] = 42;
+}
+
+#[opcode(7'b0101011  // Missing closing paren and bracket
+rtype test3(rs1: u5, rd: u5) {
+    _irf[rd] = 42;
+}
+
+#[opcode()]  // Missing argument
+rtype test4(rs1: u5, rd: u5) {
+    _irf[rd] = 42;
+}
+
+#[]  // Empty attribute
+rtype test5(rs1: u5, rd: u5) {
+    _irf[rd] = 42;
+}

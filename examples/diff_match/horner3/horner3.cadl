@@ -1,0 +1,29 @@
+// Test Case : horner3 - Cubic polynomial evaluation
+// Naive form: r = c0 + c1*x + c2*x^2 + c3*x^3
+// Coefficients are fixed constants
+
+rtype horner3(rs1: u5, rs2: u5, rd: u5) {
+    let vx: i32 = _irf[rs1];
+
+    // Fixed polynomial coefficients
+    let vc0: i32 = 1;
+    let vc1: i32 = 2;
+    let vc2: i32 = 3;
+    let vc3: i32 = 4;
+
+    // Compute powers of x
+    let x2: i32 = vx * vx;
+    let x3: i32 = x2 * vx;
+
+    // Compute terms
+    let t1: i32 = vc1 * vx;
+    let t2: i32 = vc2 * x2;
+    let t3: i32 = vc3 * x3;
+
+    // Sum up
+    let s1: i32 = vc0 + t1;
+    let s2: i32 = s1 + t2;
+    let r: i32 = s2 + t3;
+
+    _irf[rd] = r;
+}

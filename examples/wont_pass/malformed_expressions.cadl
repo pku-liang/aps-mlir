@@ -1,0 +1,31 @@
+// Malformed expressions
+
+rtype test1(rs1: u5, rd: u5) {
+    let x: u32 = _irf[rs1] +;  // Missing right operand
+    _irf[rd] = x;
+}
+
+rtype test2(rs1: u5, rd: u5) {
+    let x: u32 = * _irf[rs1];  // Missing left operand
+    _irf[rd] = x;
+}
+
+rtype test3(rs1: u5, rd: u5) {
+    let x: u32 = _irf[rs1] + + _irf[rs2];  // Double operator
+    _irf[rd] = x;
+}
+
+rtype test4(rs1: u5, rd: u5) {
+    let x: u32 = _irf[];  // Empty index
+    _irf[rd] = x;
+}
+
+rtype test5(rs1: u5, rd: u5) {
+    let x: u32 = _irf[rs1:];  // Incomplete slice
+    _irf[rd] = x;
+}
+
+rtype test6(rs1: u5, rd: u5) {
+    let x: u32 = func_call(;  // Missing argument and closing paren
+    _irf[rd] = x;
+}

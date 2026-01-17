@@ -1,0 +1,14 @@
+{
+  "internal_rewrites": 8,
+  "external_rewrites": [],
+  "custom_rewrites": 2,
+  "initial_egraph_statistics": {
+    "num_eclasses": 44,
+    "num_enodes": 110
+  },
+  "egraph_statistics": {
+    "num_eclasses": 100,
+    "num_enodes": 313
+  },
+  "time_elapsed": 1.2331326007843018
+}

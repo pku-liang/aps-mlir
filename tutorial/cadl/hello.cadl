@@ -1,0 +1,12 @@
+#[opcode(7'b0101011)]
+#[funct7(7'b0000000)]
+rtype hello(
+  rs1: u5, 
+  rs2: u5, 
+  rd: u5
+) {
+  let a: u32 = _irf[rs1];
+  let b: u32 = _irf[rs2];
+  let c: u32 = a + b;
+  _irf[rd] = c;
+}

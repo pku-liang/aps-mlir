@@ -1,0 +1,62 @@
+// VCOVMAT3D - Vector 3D Covariance Matrix Computation
+// Computes outer product between two 3D points
+// Formula: C = (p1 - p2)(p1 - p2)ᵀ
+// Used in normal estimation, PCA, and feature extraction
+// NOTE: Using fixed-point arithmetic with i32 types
+
+// Both points stored together - complete partitioning for parallel access
+// Layout: [p1.x, p1.y, p1.z, p2.x, p2.y, p2.z]
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([0])]
+static points: [i32; 8];
+
+// Output: 6 values for upper triangle of 3×3 symmetric covariance matrix
+// [C00, C01, C02, C11, C12, C22]
+// Complete partitioning for parallel output
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([0])]
+static cov_out: [i32; 8];
+
+// VCOVMAT3D.VV - Vector-Vector mode
+// Computes outer product between two 3D points
+#[opcode(7'b0101011)]
+#[funct7(7'b0110000)]
+rtype vcovmat3d_vv(rs1: u5, rs2: u5, rd: u5) {
+  let addr: u32 = _irf[rs1];  // Base address for both points (contiguous in memory)
+  let out_addr: u32 = _irf[rs2];
+  // Single burst read for both points (fully partitioned for parallel access)
+  // Reads 6 i32 values in one burst operation (only 1 latency penalty)
+  points[0 +: ] = _burst_read[addr +: 8];
+
+  // Extract coordinates (all available in parallel due to complete partitioning)
+  let x: i32 = points[0];
+  let y: i32 = points[1];
+  let z: i32 = points[2];
+
+  let cx: i32 = points[3];
+  let cy: i32 = points[4];
+  let cz: i32 = points[5];
+
+  // Compute differences between two points
+  let dx: i32 = x - cx;
+  let dy: i32 = y - cy;
+  let dz: i32 = z - cz;
+
+  // Compute outer product elements (symmetric matrix)
+  // All 6 multiplications can execute in parallel
+  // Upper triangle: C00, C01, C02, C11, C12, C22
+  cov_out[0] = dx * dx;  // σ_xx
+  cov_out[1] = dx * dy;  // σ_xy
+  cov_out[2] = dx * dz;  // σ_xz
+  cov_out[3] = dy * dy;  // σ_yy
+  cov_out[4] = dy * dz;  // σ_yz
+  cov_out[5] = dz * dz;  // σ_zz
+  cov_out[6] = points[6];  // σ_xx
+  cov_out[7] = points[7];  // σ_yy
+  // Burst write covariance matrix back to memory
+  _burst_write[out_addr +: 8] = cov_out[0 +: ];
+
+  _irf[rd] = 0;
+}

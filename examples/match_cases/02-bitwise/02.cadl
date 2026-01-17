@@ -1,0 +1,5 @@
+rtype bitwise(a: u5, b: u5, c: u5) {
+    let r1: u32 = _irf[a];
+    let r2: u32 = _irf[b];
+    _irf[c] = (a & b) | (a ^ b);
+}

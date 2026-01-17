@@ -1,0 +1,86 @@
+#[partition_dim_array([0])]
+#[partition_factor_array([16])]
+#[partition_cyclic_array([1])]
+static matB: [i8; 131072]; // 128KB
+
+static s1: u64;
+static s2: u64;
+static s1_noswap: u64;
+static s2_noswap: u64;
+
+// #[opcode(7'b1111011)]
+// #[funct7(7'b0000011)]
+// rtype transposemat_b(rs1: u5, rs2: u5, rd: u5) { // 256B, tiled load
+//     // rs1: spm_address
+//     let spm_addr0: u32 = _irf[rs1];
+//     s1 = 0;
+//     s2 = 0;
+
+//     with offset: u32 = (0, offset_) do {
+//         [[unroll(8)]]
+//         with y1: u32 = (0, y1_) do {
+//             let x1: u32 = (offset + y1 + 8) % 8;
+//             let x2: u32 = (y1 - offset + 8) % 8;
+//             let src_idx1: u32 = spm_addr0 + x1 * 8 + y1;
+//             let src_idx2: u32 = spm_addr0 + x2 * 8 + y1;
+//             let val1: u8 = matB[src_idx1];
+//             let val2: u8 = matB[src_idx2];
+//             s1 = (s1[55:0] << 8) | val1;
+//             s2 = (s2[55:0] << 8) | val2;
+//             let y1_: u32 = y1 + 1;
+//         } while (y1_ < 8);
+//         // MSB a[?, 0] a[?, 1] a[?, 2] a[?, 3] a[?, 4] a[?, 5] a[?, 6] a[?, 7] LSB
+//         s1_noswap = s1;
+//         s2_noswap = s2;
+//         s1 = (s1 << (offset * 8)) | (s1 >> (64 - offset * 8));
+//         // s1 = sel {
+//         //     offset == 0: s1,
+//         //     offset == 1: (s1 << 8 | s1[63:56]),
+//         //     offset == 2: (s1 << 16 | s1[63:48]),
+//         //     offset == 3: (s1 << 24 | s1[63:40]),
+//         //     offset == 4: (s1 << 32 | s1[63:32]),
+//         //     offset == 5: (s1 << 40 | s1[63:24]),
+//         //     offset == 6: (s1 << 48 | s1[63:16]),
+//         //     offset == 7: (s1 << 56 | s1[63:8])
+//         // };
+//         s2 = (s2 >> (offset * 8)) | (s2 << (64 - offset * 8));
+//         // s2 = sel {
+//         //     offset == 0: s2,
+//         //     offset == 1: ((s2[7:0] << 56) | s2 >> 8),
+//         //     offset == 2: ((s2[15:0] << 48) | s2 >> 16),
+//         //     offset == 3: ((s2[23:0] << 40) | s2 >> 24),
+//         //     offset == 4: ((s2[31:0] << 32) | s2 >> 32),
+//         //     offset == 5: ((s2[39:0] << 24) | s2 >> 40),
+//         //     offset == 6: ((s2[47:0] << 16) | s2 >> 48),
+//         //     offset == 7: ((s2[55:0] << 8) | s2 >> 56)
+//         // };
+//         [[unroll(8)]]
+//         with y2: u32 = (0, y2_) do {
+//             let x1: u32 = (y2 - offset + 8) % 8;
+//             let x2: u32 = (offset + y2 + 8) % 8;
+//             let shouldswap1: u1 = (x1 >= y2);
+//             let shouldswap2: u1 = (x2 <= y2);
+//             let dst_idx1: u32 = spm_addr0 + x1 * 8 + y2;
+//             let dst_idx2: u32 = spm_addr0 + x2 * 8 + y2;
+//             matB[dst_idx1] = if (shouldswap1) {s1[63:56]} else {s1_noswap[63:56]};
+//             matB[dst_idx2] = if (shouldswap2) {s2[63:56]} else {s2_noswap[63:56]};
+//             s1 = s1 << 8;
+//             s1_noswap = s1_noswap << 8;
+//             s2 = s2 << 8;
+//             s2_noswap = s2_noswap << 8;
+//             let y2_: u32 = y2 + 1;
+//         } while (y2_ < 8);
+//         let offset_: u32 = offset + 1;
+//     } while (offset_ < 8);
+
+//     _irf[rd] = 0;
+// }
+
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0001011)]
+rtype test2(rs1: u5, rs2: u5, rd: u5) { // 256B, tiled load
+    // rs1: spm_address
+    s1 = 56'd2;
+    _irf[rd] = 0;
+}

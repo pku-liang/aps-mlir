@@ -1,0 +1,53 @@
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static matrix: [i32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static vec: [i32; 4];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static result: [i32; 4];
+
+static acc: i32;
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0110001)]
+rtype vgemv3d_vv(rs1: u5, rs2: u5, rd: u5) {
+  let addr: u32 = _irf[rs1];   
+  let out_addr: u32 = _irf[rs2];   
+  matrix[0 +: ] = _burst_read[addr +: 16];
+  vec[0] = _mem[addr + 64];
+  vec[1] = _mem[addr + 68];
+  vec[2] = _mem[addr + 72];
+  vec[3] = _mem[addr + 76];
+  with i: u32 = (0, i_) do {
+    let i_mul_2: u32 = i * 2;
+    acc = 0;
+    [[unroll(4)]]
+    with j: u32 = (0, j_) do {
+      acc = acc + matrix[i_mul_2 * 4 + j] * vec[j];
+      let j_: u32 = j + 1;
+    } while (j_ < 4);
+    result[i_mul_2] = acc;
+    acc = 0;
+    [[unroll(4)]]
+    with j: u32 = (0, j_) do {
+      acc = acc + matrix[(i_mul_2 + 1) * 4 + j] * vec[j];
+      let j_: u32 = j + 1;
+    } while (j_ < 4);
+    result[i_mul_2 + 1] = acc;
+    let i_: u32 = i + 1;
+  } while (i_ < 2);
+  
+  _mem[out_addr] = result[0];
+  _mem[out_addr + 4] = result[1];
+  _mem[out_addr + 8] = result[2];
+  _mem[out_addr + 12] = result[3];
+
+  _irf[rd] = 0;
+}

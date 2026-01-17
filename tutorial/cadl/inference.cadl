@@ -1,0 +1,153 @@
+// A tile is a [8, 16] i8 matrix
+#[partition_dim_array([0])]
+#[partition_factor_array([16])]
+#[partition_cyclic_array([1])]
+static matA: [i8; 262144]; // 256KB
+
+#[partition_dim_array([0])]
+#[partition_factor_array([16])]
+#[partition_cyclic_array([1])]
+static vecB: [i8; 131072]; // 128KB
+
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static vecC: [i32; 65536]; // 256KB
+
+static zacc: i32;
+
+#[opcode(7'b0001011)]
+#[funct7(7'b0000000)]
+rtype gemv16_i8(rs1: u5, rs2: u5, rd: u5) {
+    let r1: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+
+    // C = A * B + C (optional accumulate)
+    // A: 8x16 matrix (tiled)
+    // B: 16-element vector (row-major)
+    // C: 8-element vector (row-major)
+    let offsetA: u16 = r1 >> 16;
+    let offsetB: u16 = r1 & 32'h7FFF;
+    let offsetC: u16 = r2 & 32'hFFFF;
+    let use_c: u1 = (r1 >> 15) & 1;
+
+    with i: u32 = (0, i_) do {
+        zacc = 0;
+        [[unroll(16)]]
+        with k: u32 = (0, k_) do {
+            let a_idx: u32 = i * 16 + k + offsetA * 128;
+            let a_val: i32 = matA[a_idx];
+            let b_idx: u32 = k + offsetB * 16;
+            let b_val: i32 = vecB[b_idx];
+            zacc = zacc + a_val * b_val;
+            let k_: u32 = k + 1;
+        } while (k_ < 16);
+        let c_idx: u32 = i + offsetC * 8;
+        let c_val_raw: i32 = vecC[c_idx];
+        let c_val: i32 = if (use_c) {c_val_raw} else {32'h0};
+        let c_out: i32 = zacc + c_val;
+        vecC[c_idx] = c_out;
+        let i_: u32 = i + 1;
+    } while (i_ < 8);
+
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000000)]
+rtype loadmat_a_4tile(rs1: u5, rs2: u5, rd: u5) { // 512B, tiled load
+    // rs1: dram current address (32 bit)
+    // rs2: high: spm address -> 16 bit, low: block_w -> 16 bit
+    let dram_addr0: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let spm_addr0: u32 = r2 >> 16;
+    let block_w: u32 = (r2 & 32'hFFFF);
+
+    [[unroll(8)]]
+    with 
+        i: u32 = (0, i_)
+        dram_addr: u32 = (dram_addr0, dram_addr_)
+        spm_addr : u32 = (spm_addr0,  spm_addr_)
+    do {
+        [[stride_x(16)]]
+        [[stride_y(8)]]
+        matA[spm_addr +: ] = _burst_read[dram_addr +: 64];
+        let dram_addr_: u32 = dram_addr + block_w;
+        let spm_addr_: u32 = spm_addr + 16;
+        let i_: u32 = i + 1;
+    } while (i_ < 8);
+
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000001)]
+rtype loadvec_b_256B(rs1: u5, rs2: u5, rd: u5) { // 256B, row-major load
+    // rs1: dram current address (32 bit)
+    // rs2: high: spm address -> 16 bit
+    let dram_addr0: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let spm_addr0: u32 = r2 >> 16;
+
+    [[unroll(2)]]
+    with 
+        i: u32 = (0, i_)
+        dram_addr: u32 = (dram_addr0, dram_addr_)
+        spm_addr : u32 = (spm_addr0,  spm_addr_)
+    do {
+        vecB[spm_addr +: ] = _burst_read[dram_addr +: 128];
+        let dram_addr_: u32 = dram_addr + 128;
+        let spm_addr_: u32 = spm_addr + 128;
+        let i_: u32 = i + 1;
+    } while (i_ < 2);
+
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000010)]
+rtype loadvec_b_32B(rs1: u5, rs2: u5, rd: u5) { // 32B, row-major load
+    // rs1: dram current address (32 bit)
+    // rs2: high: spm address -> 16 bit
+    let dram_addr0: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let spm_addr0: u32 = r2 >> 16;
+    vecB[spm_addr0 +: ] = _burst_read[dram_addr0 +: 32];
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000011)]
+rtype storevec_c_256B(rs1: u5, rs2: u5, rd: u5) { // 512B, tiled store
+    // rs1: dram current address (32 bit)
+    // rs2: high: spm address -> 16 bit
+    let dram_addr0: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let spm_addr0: u32 = r2 >> 16;
+
+    [[unroll(2)]]
+    with 
+        i: u32 = (0, i_)
+        dram_addr: u32 = (dram_addr0, dram_addr_)
+        spm_addr : u32 = (spm_addr0,  spm_addr_)
+    do {
+        _burst_write[dram_addr +: 32] = vecC[spm_addr +: ]; // this is biggest we can use, burst size limit 128B
+        let dram_addr_: u32 = dram_addr + 128;
+        let spm_addr_: u32 = spm_addr + 32;
+        let i_: u32 = i + 1;
+    } while (i_ < 2);
+
+    _irf[rd] = 0;
+}
+
+#[opcode(7'b1111011)]
+#[funct7(7'b0000100)]
+rtype storevec_c_128B(rs1: u5, rs2: u5, rd: u5) { // 32B, row-major load
+    // rs1: dram current address (32 bit)
+    // rs2: high: spm address -> 16 bit
+    let dram_addr0: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    let spm_addr0: u32 = r2 >> 16;
+    _burst_write[dram_addr0 +: 32] = vecC[spm_addr0 +: ];
+    _irf[rd] = 0;
+}

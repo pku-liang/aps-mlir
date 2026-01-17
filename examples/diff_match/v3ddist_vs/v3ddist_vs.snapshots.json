@@ -1,0 +1,380 @@
+{
+  "source_file": "/home/cloud/aps-mlir/examples/diff_match/v3ddist_vs/test_v3ddist_vs.c",
+  "pattern_file": "/home/cloud/aps-mlir/examples/diff_match/v3ddist_vs/v3ddist_vs.mlir",
+  "total_phases": 6,
+  "snapshots": [
+    {
+      "phase_name": "0_egraph_init",
+      "phase_index": 0,
+      "egraph_stats": {
+        "v3ddist_vs": {
+          "total_nodes": 110,
+          "total_eclasses": 44,
+          "nodes_by_type": {
+            "unimplemented": 73,
+            "arg": 3,
+            "lit": 8,
+            "impl": 26
+          },
+          "root_eclasses": 1
+        }
+      },
+      "cumulative_stats": {
+        "internal_rewrites": 0,
+        "external_rewrites": 0,
+        "custom_rewrites": 0,
+        "internal_details": [
+          {
+            "rule": "(rewrite (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) (Sub _a _b __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5904540922375503205) (Add _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5712368760572987138) (Add _b _a __expr_5712368760572987138) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 4
+          },
+          {
+            "rule": "(rewrite (Mul _a _b __expr_5904540922375503205) (Mul _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Sub _a _b __expr_5904540922375503205) (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add (Add _a _b __expr_5904540922375503205) _c __expr_5904540922375503205) (Add _a (Add _b _c __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 6
+          },
+          {
+            "rule": "(rule ((= _e (Add _x _y _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rule ((= _e (Neg _x _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 3
+          }
+        ],
+        "external_details": []
+      },
+      "details": {
+        "description": "E-Graph initialized from MLIR"
+      },
+      "timestamp": 1767868882.5254672
+    },
+    {
+      "phase_name": "1_internal_rewrites",
+      "phase_index": 1,
+      "egraph_stats": {
+        "v3ddist_vs": {
+          "total_nodes": 136,
+          "total_eclasses": 49,
+          "nodes_by_type": {
+            "unimplemented": 78,
+            "arg": 3,
+            "lit": 8,
+            "impl": 47
+          },
+          "root_eclasses": 1
+        }
+      },
+      "cumulative_stats": {
+        "internal_rewrites": 86,
+        "external_rewrites": 0,
+        "custom_rewrites": 0,
+        "internal_details": [
+          {
+            "rule": "(rewrite (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) (Sub _a _b __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5904540922375503205) (Add _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5712368760572987138) (Add _b _a __expr_5712368760572987138) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 4
+          },
+          {
+            "rule": "(rewrite (Mul _a _b __expr_5904540922375503205) (Mul _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Sub _a _b __expr_5904540922375503205) (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add (Add _a _b __expr_5904540922375503205) _c __expr_5904540922375503205) (Add _a (Add _b _c __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 6
+          },
+          {
+            "rule": "(rule ((= _e (Add _x _y _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rule ((= _e (Neg _x _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 3
+          }
+        ],
+        "external_details": []
+      },
+      "details": {
+        "description": "Applied algebraic laws (commutativity, associativity, constant folding)",
+        "rules_applied": 8
+      },
+      "timestamp": 1767868882.8380349
+    },
+    {
+      "phase_name": "2_external_rewrites",
+      "phase_index": 2,
+      "egraph_stats": {
+        "v3ddist_vs": {
+          "total_nodes": 209,
+          "total_eclasses": 101,
+          "nodes_by_type": {
+            "unimplemented": 99,
+            "arg": 6,
+            "lit": 10,
+            "impl": 94
+          },
+          "root_eclasses": 1
+        }
+      },
+      "cumulative_stats": {
+        "internal_rewrites": 86,
+        "external_rewrites": 0,
+        "custom_rewrites": 0,
+        "internal_details": [
+          {
+            "rule": "(rewrite (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) (Sub _a _b __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5904540922375503205) (Add _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5712368760572987138) (Add _b _a __expr_5712368760572987138) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 4
+          },
+          {
+            "rule": "(rewrite (Mul _a _b __expr_5904540922375503205) (Mul _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Sub _a _b __expr_5904540922375503205) (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add (Add _a _b __expr_5904540922375503205) _c __expr_5904540922375503205) (Add _a (Add _b _c __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 6
+          },
+          {
+            "rule": "(rule ((= _e (Add _x _y _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rule ((= _e (Neg _x _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 3
+          }
+        ],
+        "external_details": []
+      },
+      "details": {
+        "description": "Applied MLIR loop passes (unroll, tile)",
+        "passes_applied": 0
+      },
+      "timestamp": 1767868883.1444986
+    },
+    {
+      "phase_name": "3_custom_rewrites",
+      "phase_index": 3,
+      "egraph_stats": {
+        "v3ddist_vs": {
+          "total_nodes": 313,
+          "total_eclasses": 100,
+          "nodes_by_type": {
+            "unimplemented": 137,
+            "arg": 6,
+            "lit": 10,
+            "impl": 160
+          },
+          "root_eclasses": 1
+        }
+      },
+      "cumulative_stats": {
+        "internal_rewrites": 86,
+        "external_rewrites": 0,
+        "custom_rewrites": 1,
+        "internal_details": [
+          {
+            "rule": "(rewrite (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) (Sub _a _b __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5904540922375503205) (Add _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5712368760572987138) (Add _b _a __expr_5712368760572987138) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 4
+          },
+          {
+            "rule": "(rewrite (Mul _a _b __expr_5904540922375503205) (Mul _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Sub _a _b __expr_5904540922375503205) (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add (Add _a _b __expr_5904540922375503205) _c __expr_5904540922375503205) (Add _a (Add _b _c __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 6
+          },
+          {
+            "rule": "(rule ((= _e (Add _x _y _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rule ((= _e (Neg _x _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 3
+          }
+        ],
+        "external_details": []
+      },
+      "details": {
+        "description": "Applied egglog pattern matching rules",
+        "patterns_matched": 1
+      },
+      "timestamp": 1767868883.8206315
+    },
+    {
+      "phase_name": "3.5_skeleton_matching",
+      "phase_index": 4,
+      "egraph_stats": {
+        "v3ddist_vs": {
+          "total_nodes": 313,
+          "total_eclasses": 100,
+          "nodes_by_type": {
+            "unimplemented": 137,
+            "arg": 6,
+            "lit": 10,
+            "impl": 160
+          },
+          "root_eclasses": 1
+        }
+      },
+      "cumulative_stats": {
+        "internal_rewrites": 86,
+        "external_rewrites": 0,
+        "custom_rewrites": 2,
+        "internal_details": [
+          {
+            "rule": "(rewrite (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) (Sub _a _b __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5904540922375503205) (Add _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5712368760572987138) (Add _b _a __expr_5712368760572987138) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 4
+          },
+          {
+            "rule": "(rewrite (Mul _a _b __expr_5904540922375503205) (Mul _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Sub _a _b __expr_5904540922375503205) (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add (Add _a _b __expr_5904540922375503205) _c __expr_5904540922375503205) (Add _a (Add _b _c __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 6
+          },
+          {
+            "rule": "(rule ((= _e (Add _x _y _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rule ((= _e (Neg _x _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 3
+          }
+        ],
+        "external_details": []
+      },
+      "details": {
+        "description": "Applied skeleton-based control flow matching",
+        "skeletons_matched": 1,
+        "skeleton_names": [
+          "v3ddist_vs"
+        ]
+      },
+      "timestamp": 1767868883.924648
+    },
+    {
+      "phase_name": "4_before_extraction",
+      "phase_index": 5,
+      "egraph_stats": {
+        "v3ddist_vs": {
+          "total_nodes": 313,
+          "total_eclasses": 100,
+          "nodes_by_type": {
+            "unimplemented": 137,
+            "arg": 6,
+            "lit": 10,
+            "impl": 160
+          },
+          "root_eclasses": 1
+        }
+      },
+      "cumulative_stats": {
+        "internal_rewrites": 86,
+        "external_rewrites": 0,
+        "custom_rewrites": 2,
+        "internal_details": [
+          {
+            "rule": "(rewrite (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) (Sub _a _b __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5904540922375503205) (Add _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rewrite (Add _a _b __expr_5712368760572987138) (Add _b _a __expr_5712368760572987138) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 4
+          },
+          {
+            "rule": "(rewrite (Mul _a _b __expr_5904540922375503205) (Mul _b _a __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Sub _a _b __expr_5904540922375503205) (Add _a (Neg _b __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 3
+          },
+          {
+            "rule": "(rewrite (Add (Add _a _b __expr_5904540922375503205) _c __expr_5904540922375503205) (Add _a (Add _b _c __expr_5904540922375503205) __expr_5904540922375503205) :ruleset megg.rewrites.internal_rewrites.basic_math_laws_min)",
+            "num_matches": 6
+          },
+          {
+            "rule": "(rule ((= _e (Add _x _y _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 18
+          },
+          {
+            "rule": "(rule ((= _e (Neg _x _t)))\n      ((set (megg_egraph_term_eclass_ty _e) _t))\n        :ruleset megg.rewrites.internal_rewrites.type_annotation )",
+            "num_matches": 3
+          }
+        ],
+        "external_details": []
+      },
+      "details": {
+        "description": "E-Graph saturated, ready for extraction"
+      },
+      "timestamp": 1767868884.0240693
+    }
+  ]
+}

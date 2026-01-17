@@ -1,0 +1,138 @@
+// DECA Decompression - 32-element Tile Version (Burst-Friendly)
+// Key optimizations:
+// 1. Tile size = 32 elements (fits in 64-byte burst limit)
+// 2. Use u8 for bitmask storage (compatible with mlir-std)
+// 3. Use single global scale factor - eliminates group scale division
+// This version uses u8 bitmask for APSToStandard compatibility
+
+// ============================================================================
+// Memory Buffers
+// ============================================================================
+
+// Sparse values: up to 32 INT8 values (input)
+static values: [i64; 8];
+
+// Dense values: 32 INT8 values (intermediate - expanded from sparse)
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static dense_values: [i8; 32];
+
+// Decompressed weight output: 32 INT16 elements
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static decompressed_weights: [i16; 32];
+
+static vidx: u32 = 0;
+
+// ============================================================================
+// DECA Decompression - Two Stage Fully Affine Version
+// ============================================================================
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000101)]
+rtype deca_decompress_u1(rs1: u5, rs2: u5, rd: u5) {
+    let base_addr: u32 = _irf[rs1];
+
+    let out_addr: u32 = _irf[rs2];
+    vidx = 0;
+
+    // Burst read compressed data
+    // Memory layout: [bitmask (4 bytes u8), values (32 bytes i8)]
+    values[0 +: ] = _burst_read[base_addr +: 8];
+    let bitmask: u32 = _mem[base_addr + 64];
+    let global_scale: i16 = _mem[base_addr + 68];
+
+    // ========================================================================
+    // Stage 1: Sparse-to-Dense Expansion (bitmask-driven)
+    // Expand sparse values to dense array based on bitmask
+    // ========================================================================
+
+    with idx: u32 = (0, idx_) do {
+        // Extract bit from bitmask byte
+        let bit_pos_0: u8 = idx[0:0] * 4;
+        let bit_pos_1: u8 = bit_pos_0 + 1;
+        let bit_pos_2: u8 = bit_pos_0 + 2;
+        let bit_pos_3: u8 = bit_pos_0 + 3;   
+        let mask_byte: u8 = sel {
+            idx < 2: bitmask[7:0],
+            idx < 4: bitmask[15:8],
+            idx < 6: bitmask[23:16],
+            idx >= 6: bitmask[31:24],
+        };
+        let bit_shifted_0: u8 = mask_byte >> bit_pos_0;
+        let bit_shifted_1: u8 = mask_byte >> bit_pos_1;
+        let bit_shifted_2: u8 = mask_byte >> bit_pos_2;
+        let bit_shifted_3: u8 = mask_byte >> bit_pos_3;
+
+        let is_nonzero_0: u1 = bit_shifted_0[0:0]; // Extract bit 0
+        let is_nonzero_1: u1 = bit_shifted_1[0:0]; // Extract bit 1
+        let is_nonzero_2: u1 = bit_shifted_2[0:0]; // Extract bit 2
+        let is_nonzero_3: u1 = bit_shifted_3[0:0]; // Extract bit 3
+
+        let vidx_0: u32 = vidx;
+        let vidx_1: u32 = vidx + (if is_nonzero_0 {1} else {0});
+        let vidx_2: u32 = vidx_1 + (if is_nonzero_1 {1} else {0});
+        let vidx_3: u32 = vidx_2 + (if is_nonzero_2 {1} else {0});
+        let vidx_4: u32 = vidx_3 + (if is_nonzero_3 {1} else {0});
+
+        // Conditionally read from sparse values
+        let zero_i8: i8 = 0;
+        let value_idx_0: u32 = vidx_0 >> 3; // Divide by 8 to get index in values array
+        let value_idx_1: u32 = vidx_1 >> 3;
+        let value_idx_2: u32 = vidx_2 >> 3;
+        let value_idx_3: u32 = vidx_3 >> 3;
+
+        let value_offset_0: u32 = vidx_0 & 7; // Modulo 8 to get offset within i64
+        let value_offset_1: u32 = vidx_1 & 7;
+        let value_offset_2: u32 = vidx_2 & 7;
+        let value_offset_3: u32 = vidx_3 & 7;
+        
+        let val_double_word_0: i64 = values[value_idx_0];
+        let val_0: i8 = val_double_word_0 >> (value_offset_0 * 8) [7:0];
+        let val_double_word_1: i64 = values[value_idx_1];
+        let val_1: i8 = val_double_word_1 >> (value_offset_1 * 8) [7:0];
+        let val_double_word_2: i64 = values[value_idx_2];
+        let val_2: i8 = val_double_word_2 >> (value_offset_2 * 8) [7:0];
+        let val_double_word_3: i64 = values[value_idx_3];
+        let val_3: i8 = val_double_word_3 >> (value_offset_3 * 8) [7:0];
+        
+        // Write to dense array (affine access)
+        dense_values[idx * 4] = if is_nonzero_0 { val_0 } else { zero_i8 };  // ✅ Affine: dense_values[idx * 4]
+        dense_values[idx * 4 + 1] = if is_nonzero_1 { val_1 } else { zero_i8 };
+        dense_values[idx * 4 + 2] = if is_nonzero_2 { val_2 } else { zero_i8 };
+        dense_values[idx * 4 + 3] = if is_nonzero_3 { val_3 } else { zero_i8 };
+
+        // Update sparse index counter (counts non-zero elements)
+        vidx = vidx_4;
+
+        let idx_: u32 = idx + 1;
+
+    } while (idx_ < 8);
+
+    // ========================================================================
+    // Stage 2: Fully Affine Decompression
+    // All array accesses in this stage are affine!
+    // ========================================================================
+    [[unroll(4)]]
+    with idx: u32 = (0, idx_) do {
+        // Read from dense values (affine access)
+        let val: i8 = dense_values[idx];  // ✅ Affine: dense_values[idx]
+
+        // Q8.8 multiplication with global scale
+        // let mul_result: i32 = val * global_scale;
+        let val32: i32 = val;
+        let global_scale32: i32 = global_scale;
+        let mul_result: i32 = val32 * global_scale32;
+        let dequant: i16 = (mul_result >> 8)[15:0];
+
+        // Write result (affine access)
+        decompressed_weights[idx] = dequant;  // ✅ Affine: decompressed_weights[idx]
+        let idx_: u32 = idx + 1;
+    } while (idx_ < 32);
+
+    // Burst write decompressed output (32 × i16 = 64 bytes)
+    _burst_write[out_addr +: 64] = decompressed_weights[0 +: ];
+    _irf[rd] = 0;
+}

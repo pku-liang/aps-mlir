@@ -1,0 +1,19 @@
+// Empty or incomplete constructs
+
+rtype test1() {  // Missing parameters
+    _irf[rd] = 42;
+}
+
+rtype test2(rs1: u5, rd: u5) {
+    // Empty body - this might actually be valid
+}
+
+fn empty_function() {  // Missing return type and body
+}
+
+static;  // Incomplete static declaration
+
+regfile;  // Incomplete regfile declaration
+
+#[opcode(7'b0101011)]
+rtype test3(rs1: u5, rd: u5);  // Empty body with semicolon instead of braces

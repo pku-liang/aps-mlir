@@ -1,0 +1,30 @@
+// Test 2: Multiple global scalars
+// Tests: global scalar handling, scalar reads/writes
+
+static counter: u32 = 0;
+static accumulator: u32 = 0;
+static max_value: u32 = 100;
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000001)]
+rtype increment_counter(rs1: u5, rd: u5) {
+    // Read input value
+    let input: u32 = _irf[rs1];
+
+    // Read global scalars
+    let cnt: u32 = counter;
+    let acc: u32 = accumulator;
+    let max: u32 = max_value;
+
+    // Update counter
+    let new_cnt: u32 = cnt + 1;
+    counter = new_cnt;
+
+    // Update accumulator
+    let new_acc: u32 = acc + input;
+    accumulator = new_acc;
+
+    // Return 1 if counter reached max, 0 otherwise
+    let result: u32 = if new_cnt >= max { 1 } else { 0 };
+    _irf[rd] = result;
+}

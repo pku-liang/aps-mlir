@@ -1,0 +1,116 @@
+// GEMM - General Matrix Multiply
+// Computes matrix-matrix product: C = A × B
+// Formula: C[m×p] = A[m×n] × B[n×p]
+// This implementation uses tiling for efficiency and hardware resource optimization
+//
+// Configuration:
+// - M = 4 (rows of A and C)
+// - N = 4 (columns of A, rows of B)
+// - P = 4 (columns of B and C)
+// - All matrices use i32 fixed-point representation
+
+// ============================================================================
+// Memory Buffers - All arrays are partitioned for parallel access
+// ============================================================================
+
+// Matrix A storage (M × N = 4 × 4 = 16 elements)
+// Complete cyclic partitioning for parallel row access
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static matrix_a: [i16; 16];
+
+// Matrix B storage (N × P = 4 × 4 = 16 elements)
+// Complete cyclic partitioning for parallel column access
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static matrix_b: [i16; 16];
+
+// Matrix C storage (M × P = 4 × 4 = 16 elements) - output matrix
+// Complete cyclic partitioning for parallel write access
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static matrix_c: [i16; 16];
+
+// Accumulator for dot product computation
+static acc: i16;
+
+// ============================================================================
+// GEMM Kernel - Matrix-Matrix Multiplication
+// ============================================================================
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0111000)]
+rtype gemm_4x4(rs1: u5, rs2: u5, rd: u5) {
+    // rs1 points to base address for matrix A and B data
+    // rs2 points to output address for matrix C
+    // rd receives status (0 = success)
+
+    let addr_a: u32 = _irf[rs1];       // Base address of matrix A
+    // let addr_b: u32 = _irf[rs1] + 64;  // Matrix B follows A (16 words × 4 bytes = 64 bytes)
+    let addr_b: u32 = _irf[rs2];     // Output address for matrix C
+
+    // ========================================================================
+    // Stage 1: Burst Read Input Matrices
+    // ========================================================================
+
+    // Burst read matrix A (16 i16 elements = 32 bytes)
+    matrix_a[0 +: ] = _burst_read[addr_a +: 16];
+
+    // Burst read matrix B (16 i16 elements = 32 bytes)
+    matrix_b[0 +: ] = _burst_read[addr_b +: 16];
+
+    // ========================================================================
+    // Stage 2: Matrix Multiplication - Triple Nested Loop
+    // Compute C[i,j] = Σₖ A[i,k] × B[k,j]
+    // ========================================================================
+
+    // Outer loop: iterate over rows of A (and C)
+    with i: u32 = (0, i_) do {
+
+        // Middle loop: iterate over columns of B (and C)
+        [[unroll(4)]]
+        with j: u32 = (0, j_) do {
+            // Reset accumulator for each output element
+            acc = 0;
+
+            // Inner loop: dot product over dimension N
+            [[unroll(4)]]
+            with k: u32 = (0, k_) do {
+                // Access A[i,k]: row-major layout → index = i*N + k
+                let a_idx: u32 = i * 4 + k;
+                let a_val: i16 = matrix_a[a_idx];
+
+                // Access B[k,j]: row-major layout → index = k*P + j
+                let b_idx: u32 = k * 4 + j;
+                let b_val: i16 = matrix_b[b_idx];
+
+                // Multiply-accumulate: acc += A[i,k] × B[k,j]
+                acc = acc + a_val * b_val;
+
+                let k_: u32 = k + 1;
+            } while (k_ < 4);
+
+            // Store accumulated result to C[i,j]
+            let c_idx: u32 = i * 4 + j;
+            matrix_c[c_idx] = acc;
+
+            let j_: u32 = j + 1;
+        } while (j_ < 4);
+
+        let i_: u32 = i + 1;
+    } while (i_ < 4);
+
+    // ========================================================================
+    // Stage 3: Burst Write Output Matrix
+    // ========================================================================
+
+    // Burst write matrix C (16 i16 elements = 32 bytes)
+    let write_addr: u32 = addr_b + 32;
+    _burst_write[write_addr +: 16] = matrix_c[0 +: ];
+
+    // Return success status
+    _irf[rd] = 0;
+}

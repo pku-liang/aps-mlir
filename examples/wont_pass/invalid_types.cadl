@@ -1,0 +1,26 @@
+// Invalid type declarations
+
+rtype test1(rs1: u5, rd: u5) {
+    let x: u999999999999999999999;  // Extremely large width
+    _irf[rd] = x;
+}
+
+rtype test2(rs1: u5, rd: u5) {
+    let x: u0;  // Zero width type
+    _irf[rd] = x;
+}
+
+rtype test3(rs1: u5, rd: u5) {
+    let x: invalid_type = 42;  // Unknown type
+    _irf[rd] = x;
+}
+
+rtype test4(rs1: u5, rd: u5) {
+    let x: [u32; -5] = {};  // Negative array size
+    _irf[rd] = 42;
+}
+
+rtype test5(rs1: u5, rd: u5) {
+    let x: [; 5] = {};  // Missing element type
+    _irf[rd] = 42;
+}

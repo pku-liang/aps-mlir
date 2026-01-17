@@ -1,0 +1,15 @@
+// Test Case : lerp - Linear interpolation
+// Formula: r = a + t*(b - a)
+// t= (a + b) >> 2
+
+rtype lerp(rs1: u5, rs2: u5, rd: u5) {
+    let va: i32 = _irf[rs1];
+    let vb: i32 = _irf[rs2];
+    let vt: i32 = (va + vb) >> 2;
+
+    let diff: i32 = vb - va;
+    let scaled: i32 = diff * vt;
+    let r: i32 = va + scaled;
+
+    _irf[rd] = r;
+}

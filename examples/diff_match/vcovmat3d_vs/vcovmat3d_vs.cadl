@@ -1,0 +1,101 @@
+// VCOVMAT3D_VS - Vector 3D Covariance Matrix with Accumulation (Vector-Scalar mode)
+// Computes accumulated outer product for batch of 3D points
+// Formula: C = Σᵢ (pᵢ - centroid)(pᵢ - centroid)ᵀ / n
+// Fuses covariance computation with accumulation to reduce DMA overhead
+// NOTE: Using fixed-point arithmetic with i32 types
+
+// Input: 16 3D points in Structure-of-Arrays (SOA) format
+// Layout: [X[16] | Y[16] | Z[16]] for parallel access
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points_x: [i32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points_y: [i32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static points_z: [i32; 16];
+
+// Accumulator for covariance matrix (6 unique elements of symmetric 3×3 matrix)
+// [C00, C01, C02, C11, C12, C22, count, reserved]
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static cov_accum: [i32; 8];
+
+// VCOVMAT3D.VS - Vector-Scalar mode with accumulation
+// Computes accumulated covariance matrix for batch of points
+// rs1: base address for point cloud (SOA: X[16], Y[16], Z[16], cx, cy, cz)
+// rs2: output address for 8-element result (6 covariance + count + reserved)
+// rd: return value (writes result status to register file)
+#[opcode(7'b0101011)]
+#[funct7(7'b0110000)]
+rtype vcovmat3d_vs(rs1: u5, rs2: u5, rd: u5) {
+  let points_addr: u32 = _irf[rs1];    // Base address for point cloud + centroid
+  let out_addr: u32 = _irf[rs2];       // Output address
+
+  // Read centroid (3 scalar values after the 3 point arrays)
+  // Point cloud layout: X[16] (64B) | Y[16] (64B) | Z[16] (64B) | cx | cy | cz
+  // centroid_offset: u32 = 192; // 3 arrays × 16 elements × 4 bytes = 192
+  let cx: i32 = _mem[points_addr + 192];
+  let cy: i32 = _mem[points_addr + 196];
+  let cz: i32 = _mem[points_addr + 200];
+
+  // Initialize accumulator to zero
+  cov_accum[0] = 0;  // C00 (σ_xx)
+  cov_accum[1] = 0;  // C01 (σ_xy)
+  cov_accum[2] = 0;  // C02 (σ_xz)
+  cov_accum[3] = 0;  // C11 (σ_yy)
+  cov_accum[4] = 0;  // C12 (σ_yz)
+  cov_accum[5] = 0;  // C22 (σ_zz)
+  cov_accum[6] = 16; // Store count for averaging
+  cov_accum[7] = 0;  // Reserved
+
+  // Burst read all X coordinates (16 values in parallel)
+  // Only 1 DMA startup penalty for entire vector
+  points_x[0 +: ] = _burst_read[points_addr +: 16];
+
+  // Burst read all Y coordinates
+  points_y[0 +: ] = _burst_read[points_addr + 64 +: 16];
+
+  // Burst read all Z coordinates
+  points_z[0 +: ] = _burst_read[points_addr + 128 +: 16];
+
+  // Process all 16 points with 4-way unrolling for throughput
+  // Each iteration computes outer product and accumulates
+  [[unroll(4)]]
+  with i: u8 = (0, i_)
+  do {
+    // Read point coordinates (all available in parallel due to partitioning)
+    let x: i32 = points_x[i];
+    let y: i32 = points_y[i];
+    let z: i32 = points_z[i];
+
+    // Center point around centroid
+    let dx: i32 = x - cx;
+    let dy: i32 = y - cy;
+    let dz: i32 = z - cz;
+
+    // Compute and accumulate outer product (6 MAC operations in parallel)
+    // These are multiply-accumulate operations: cov += d * d
+    cov_accum[0] = cov_accum[0] + dx * dx;  // σ_xx
+    cov_accum[1] = cov_accum[1] + dx * dy;  // σ_xy
+    cov_accum[2] = cov_accum[2] + dx * dz;  // σ_xz
+    cov_accum[3] = cov_accum[3] + dy * dy;  // σ_yy
+    cov_accum[4] = cov_accum[4] + dy * dz;  // σ_yz
+    cov_accum[5] = cov_accum[5] + dz * dz;  // σ_zz
+
+    let i_: u32 = i + 1;
+  } while i_ < 16;
+
+  // Burst write accumulated covariance matrix (8 values including metadata)
+  _burst_write[out_addr +: 8] = cov_accum[0 +: ];
+
+  // Return success indicator (non-zero means valid result)
+  _irf[rd] = 1;
+}

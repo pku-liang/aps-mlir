@@ -1,0 +1,22 @@
+// Test signed type conversions
+
+// Signed extension: i16 -> i32
+rtype func_signed_ext(a: u5, b: u5) {
+    let r1: i16 = _irf[a][15:0];
+    let r2: i32 = r1;  // Signed extension i16 -> i32
+    _irf[b] = r2;
+}
+
+// Unsigned extension: u16 -> u32
+rtype func_unsigned_ext(a: u5, b: u5) {
+    let r1: u16 = _irf[a][15:0];
+    let r2: u32 = r1;  // Unsigned extension u16 -> u32
+    _irf[b] = r2;
+}
+
+// Mixed: signed to unsigned (same width)
+rtype func_sign_change(a: u5, b: u5) {
+    let r1: i32 = _irf[a];
+    let r2: u32 = r1;  // i32 -> u32 (same width, different signedness)
+    _irf[b] = r2;
+}

@@ -1,0 +1,26 @@
+// Malformed number literals
+
+rtype test1(rs1: u5, rd: u5) {
+    let x: u32 = 5'b10201;  // Invalid binary digit
+    _irf[rd] = x;
+}
+
+rtype test2(rs1: u5, rd: u5) {
+    let x: u32 = 8'hGGFF;  // Invalid hex digit
+    _irf[rd] = x;
+}
+
+rtype test3(rs1: u5, rd: u5) {
+    let x: u32 = 3'o899;  // Invalid octal digit
+    _irf[rd] = x;
+}
+
+rtype test4(rs1: u5, rd: u5) {
+    let x: u32 = 'b1010;  // Missing width
+    _irf[rd] = x;
+}
+
+rtype test5(rs1: u5, rd: u5) {
+    let x: u32 = 5';  // Missing format and value
+    _irf[rd] = x;
+}

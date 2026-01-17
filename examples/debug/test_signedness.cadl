@@ -1,0 +1,31 @@
+// Test signedness handling for various operations
+
+rtype test_signed_ops(a: u5, b: u5, c: u5) {
+    let r1: u32 = _irf[a];
+    let r2: u32 = _irf[b];
+
+    // Convert to signed
+    let s1: i32 = r1;
+    let s2: i32 = r2;
+
+    // Signed operations should use si variants
+    let div_result: u32 = s1 / s2;   // divsi
+    let rem_result: u32 = s1 % s2;   // remsi
+    let shr_result: u32 = s1 >> s2;  // shrsi
+
+    let q1: u32 = div_result / div_result;
+
+    _irf[c] = div_result;
+}
+
+// rtype test_unsigned_ops(a: u5, b: u5, c: u5) {
+//     let r1: u32 = _irf[a];
+//     let r2: u32 = _irf[b];
+
+//     // Unsigned operations should use ui variants
+//     let div_result: u32 = r1 / r2;   // divui
+//     let rem_result: u32 = r1 % r2;   // remui
+//     let shr_result: u32 = r1 >> r2;  // shrui
+
+//     _irf[c] = div_result;
+// }

@@ -1,0 +1,31 @@
+// Test signed vs unsigned comparisons
+
+rtype test_signed_compare(a: u5, b: u5, c: u5) {
+    let r1: u32 = _irf[a];
+    let r2: u32 = _irf[b];
+
+    // Convert to signed
+    let s1: i32 = r1;
+    let s2: i32 = r2;
+
+    // Signed comparisons should use slt, sle, sgt, sge
+    let lt_result: u32 = if s1 < s2 { 1 } else { 0 };
+    let le_result: u32 = if s1 <= s2 { 1 } else { 0 };
+    let gt_result: u32 = if s1 > s2 { 1 } else { 0 };
+    let ge_result: u32 = if s1 >= s2 { 1 } else { 0 };
+
+    _irf[c] = lt_result;
+}
+
+rtype test_unsigned_compare(a: u5, b: u5, c: u5) {
+    let r1: u32 = _irf[a];
+    let r2: u32 = _irf[b];
+
+    // Unsigned comparisons should use ult, ule, ugt, uge
+    let lt_result: u32 = if r1 < r2 { 1 } else { 0 };
+    let le_result: u32 = if r1 <= r2 { 1 } else { 0 };
+    let gt_result: u32 = if r1 > r2 { 1 } else { 0 };
+    let ge_result: u32 = if r1 >= r2 { 1 } else { 0 };
+
+    _irf[c] = lt_result;
+}

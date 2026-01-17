@@ -1,0 +1,11 @@
+#!/bin/bash
+# Wrapper script for megg-opt that ensures correct environment
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Setup pixi environment
+eval "$(pixi shell-hook -s bash)"
+
+# Run megg-opt.py with proper environment
+exec python "$SCRIPT_DIR/megg-opt.py" "$@"

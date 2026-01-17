@@ -1,0 +1,28 @@
+// Test 4: Multiple return values (multiple writerf)
+// Tests: multiple aps.writerf operations becoming multiple return values
+
+static buffer: [u32; 4];
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000011)]
+rtype compute_stats(rs1: u5, rs2: u5, rd: u5) {
+    // Load data
+    let addr: u32 = _irf[rs1];
+    buffer[0 +: ] = _burst_read[addr +: 4];
+
+    // Compute sum and max (use loop-carried variables)
+    with
+        i: u32 = (0, i_)
+        sum: u32 = (0, new_sum)
+        max: u32 = (0, new_max)
+    do {
+        let val: u32 = buffer[i];
+        let new_sum: u32 = sum + val;
+        let new_max: u32 = if val > max { val } else { max };
+        let i_: u32 = i + 1;
+    } while (i_ < 4);
+
+    // Return both sum and max
+    _irf[rs2] = sum;   // Return value 1
+    _irf[rd] = max;    // Return value 2
+}

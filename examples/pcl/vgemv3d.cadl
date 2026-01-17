@@ -1,0 +1,56 @@
+// VGEMV3D - 3D General Matrix-Vector Multiply with Homogeneous Coordinates
+// Computes matrix-vector product: y = M × x for 4D homogeneous vectors
+// Formula: [y0, y1, y2, y3]ᵀ = M₄ₓ₄ × [x0, x1, x2, x3]ᵀ
+// Used for affine transformations, projections, coordinate transforms
+
+// Matrix storage - flattened 1D array (row-major: 16 elements)
+// Complete partitioning for parallel access to all 16 elements
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static matrix: [i32; 16];
+
+// Input vector - complete partitioning
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static vec: [i32; 4];
+
+static result: [i32; 4];
+
+static acc: i32;
+// VGEMV3D.VV - Vector-Vector mode
+// Multiplies 4×4 matrix with 4D homogeneous vector
+#[opcode(7'b1111011)]
+#[funct7(7'b0110001)]
+rtype vgemv3d_vv(rs1: u5, rs2: u5, rd: u5) {
+  let addr: u32 = _irf[rs1];    // Address of matrix data and vector data
+  let out_addr: u32 = _irf[rs2];    // Address of output
+
+  // Burst read for flattened matrix (16 elements)
+  matrix[0 +: ] = _burst_read[addr +: 16];
+
+  // Burst read for vector (4 elements)
+  vec[0 +: ] = _burst_read[addr + 64 +: 4];
+
+  // Compute matrix-vector product: result[i] = Σⱼ matrix[i*4+j] * vec[j]
+  // [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    acc = 0;  // Reset accumulator for each row
+    [[unroll(4)]]
+    with j: u32 = (0, j_) do {
+      acc = acc + matrix[i * 4 + j] * vec[j];
+      let j_: u32 = j + 1;
+    } while (j_ < 4);
+    result[i] = acc;
+    let i_: u32 = i + 1;
+  } while (i_ < 4);
+
+  // Burst write result vector
+  _mem[out_addr] = result[0];
+  _mem[out_addr + 4] = result[1];
+  _mem[out_addr + 8] = result[2];
+  _mem[out_addr + 12] = result[3];
+
+  _irf[rd] = 0;
+}

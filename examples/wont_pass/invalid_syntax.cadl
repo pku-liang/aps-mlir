@@ -1,0 +1,26 @@
+// Various syntax errors
+
+// Invalid function syntax
+fn broken_function(x: u32 -> u32) {  // Missing closing paren and arrow
+    return x;
+}
+
+// Invalid flow syntax
+rtype test1(rs1: u5, rs2 u5, rd: u5) {  // Missing colon
+    let x: u32 = _irf[rs1];
+    _irf[rd] = x;
+}
+
+// Invalid expression syntax
+rtype test2(rs1: u5, rd: u5) {
+    let x: u32 = + _irf[rs1];  // Invalid operator placement
+    _irf[rd] = x;
+}
+
+// Invalid assignment
+rtype test3(rs1: u5, rd: u5) {
+    42 = _irf[rs1];  // Can't assign to literal
+}
+
+// Invalid array syntax
+static arr: [u32; ] = {};  // Missing array size

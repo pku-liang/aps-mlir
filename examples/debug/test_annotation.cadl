@@ -1,0 +1,15 @@
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static mem_a: [u32; 16];
+
+#[partition_dim_array([0, 1])]
+#[partition_factor_array([4, 2])]
+static mem_b: [u32; 16; 8];
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000000)]
+rtype test_flow(rs1: u5, rs2: u5) {
+    let r1: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+}

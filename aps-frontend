@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""
+APS Frontend - CADL to MLIR Compiler Frontend
+
+A command-line tool for parsing CADL (Computer Architecture Description Language)
+files and transforming them to MLIR (Multi-Level Intermediate Representation).
+"""
+
+import sys
+import os
+import argparse
+from pathlib import Path
+from typing import Optional
+from cadl_frontend import parse_proc
+from cadl_frontend.parser import CADLParseError
+from cadl_frontend.mlir_converter import convert_cadl_to_mlir
+from cadl_frontend.transpile_to_c import CTranspiler
+from cadl_frontend.debug import (
+    set_debug_level, set_module_debug_level, DebugLevel,
+    dbg_debug, dbg_info, dbg_warning, dbg_error, dbg_critical
+)
+
+
+def parse_cadl(input_file: str, summary: bool = False) -> None:
+    """Parse CADL file and display AST"""
+    try:
+        with open(input_file, 'r') as f:
+            source = f.read()
+
+        dbg_info(f"Parsing CADL file: {input_file}")
+        ast = parse_proc(source, input_file)
+
+        dbg_info("Parse successful!")
+
+        if summary:
+            # Summary mode - show brief statistics
+            print(f"\nAST Summary:")
+            print(f"   - Static variables: {len(ast.statics)}")
+            print(f"   - Functions: {len(ast.functions)}")
+            print(f"   - Flows: {len(ast.flows)}")
+            print(f"   - Regfiles: {len(ast.regfiles)}")
+
+            if ast.statics:
+                print(f"\nStatic Variables:")
+                for name, static in ast.statics.items():
+                    print(f"   - {name}: {static.ty}")
+
+            if ast.functions:
+                print(f"\nFunctions:")
+                for name in ast.functions.keys():
+                    print(f"   - {name}()")
+
+            if ast.flows:
+                print(f"\nFlows:")
+                for name, flow in ast.flows.items():
+                    attrs = []
+                    if hasattr(flow, 'attrs') and flow.attrs.attrs:
+                        for attr_name, attr_expr in flow.attrs.attrs.items():
+                            if attr_expr and hasattr(attr_expr, 'literal'):
+                                value = attr_expr.literal.lit.value
+                                attrs.append(f"{attr_name}={value}")
+                            else:
+                                attrs.append(attr_name)
+                    attr_str = f" [{', '.join(attrs)}]" if attrs else ""
+                    print(f"   - {name}(){attr_str}")
+        else:
+            # Full AST output
+            print(f"\nFull AST:")
+            print(ast.pretty_print())
+
+    except CADLParseError as e:
+        dbg_critical(f"Parse Error:\n{e}")
+        sys.exit(1)
+    except FileNotFoundError:
+        dbg_critical(f"Error: File '{input_file}' not found")
+        sys.exit(1)
+    except Exception as e:
+        dbg_critical(f"Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def convert_to_mlir(input_file: str, output_file: Optional[str] = None, verify: bool = True) -> None:
+    """Convert CADL file to MLIR"""
+    try:
+        with open(input_file, 'r') as f:
+            source = f.read()
+
+        dbg_info(f"Parsing CADL file: {input_file}")
+        ast = parse_proc(source, input_file)
+        dbg_info("Parse successful!")
+
+        dbg_info(f"Converting to MLIR...")
+        mlir_module = convert_cadl_to_mlir(ast)
+        dbg_info("MLIR conversion successful!")
+
+        mlir_text = str(mlir_module)
+
+        if verify:
+            dbg_info(f"Verifying MLIR...")
+            try:
+                # Try to parse the generated MLIR to verify it's valid
+                import circt.ir as ir
+                import circt
+                with ir.Context() as ctx:
+                    circt.register_dialects(ctx)
+                    ir.Module.parse(mlir_text)
+                dbg_info("MLIR verification successful!")
+            except Exception as e:
+                dbg_critical(f"MLIR verification failed: {e}")
+                print(mlir_text, file=sys.stderr)
+                if not output_file:
+                    sys.exit(1)
+
+        if output_file:
+            # Write to file
+            with open(output_file, 'w') as f:
+                f.write(mlir_text)
+            dbg_info(f"MLIR written to: {output_file}")
+        else:
+            # Print to stdout
+            dbg_info(f"\nGenerated MLIR:")
+            dbg_info("=" * 60)
+            print(mlir_text)
+            dbg_info("=" * 60)
+
+    except CADLParseError as e:
+        dbg_critical(f"Parse Error:\n{e}")
+        sys.exit(1)
+    except FileNotFoundError:
+        dbg_critical(f"Error: File '{input_file}' not found")
+        sys.exit(1)
+    except Exception as e:
+        dbg_critical(f"Conversion error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def convert_to_c(input_file: str, output_file: Optional[str] = None) -> None:
+    """Convert CADL file to high-level C code."""
+    try:
+        transpiler = CTranspiler()
+        c_code = transpiler.transpile(Path(input_file))
+
+        if output_file:
+            Path(output_file).write_text(c_code)
+            dbg_info(f"C code written to: {output_file}")
+        else:
+            print(c_code)
+
+    except CADLParseError as e:
+        dbg_critical(f"Parse Error:\n{e}")
+        sys.exit(1)
+    except FileNotFoundError:
+        dbg_critical(f"Error: File '{input_file}' not found")
+        sys.exit(1)
+    except Exception as e:
+        dbg_critical(f"Transpilation error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def extract_encoding(input_file: str, output_file: Optional[str] = None) -> None:
+    """Extract instruction encoding (opcode, funct3, funct7) from CADL file to JSON."""
+    import json
+    from cadl_frontend.ast import LitExpr, LiteralInner_Fixed
+
+    try:
+        with open(input_file, 'r') as f:
+            source = f.read()
+
+        dbg_info(f"Parsing CADL file: {input_file}")
+        ast = parse_proc(source, input_file)
+        dbg_info("Parse successful!")
+
+        encoding = {}
+
+        for flow_name, flow in ast.flows.items():
+            flow_encoding = {}
+
+            # Extract opcode, funct3, funct7 from flow attributes
+            for attr_name in ['opcode', 'funct3', 'funct7']:
+                attr_value = flow.attrs.get(attr_name)
+                if attr_value is not None:
+                    # attr_value should be a LitExpr with a Fixed literal
+                    if isinstance(attr_value, LitExpr):
+                        lit_inner = attr_value.literal.lit
+                        if isinstance(lit_inner, LiteralInner_Fixed):
+                            # Convert to hex string
+                            flow_encoding[attr_name] = f"0x{lit_inner.value:X}"
+
+            if flow_encoding:
+                encoding[flow_name] = flow_encoding
+                dbg_info(f"  {flow_name}: {flow_encoding}")
+
+        if not encoding:
+            dbg_warning("No instruction encodings found in CADL file")
+
+        json_output = json.dumps(encoding, indent=2)
+
+        if output_file:
+            Path(output_file).write_text(json_output)
+            dbg_info(f"Encoding JSON written to: {output_file}")
+        else:
+            print(json_output)
+
+    except CADLParseError as e:
+        dbg_critical(f"Parse Error:\n{e}")
+        sys.exit(1)
+    except FileNotFoundError:
+        dbg_critical(f"Error: File '{input_file}' not found")
+        sys.exit(1)
+    except Exception as e:
+        dbg_critical(f"Encoding extraction error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def main():
+    """Main CLI entry point"""
+    parser = argparse.ArgumentParser(
+        prog='aps-frontend',
+        description='APS Frontend - CADL to MLIR Compiler Frontend',
+        epilog='''
+Examples:
+  aps-frontend parse examples/simple.cadl           # Parse and show full AST
+  aps-frontend parse examples/simple.cadl --summary # Parse and show summary
+  aps-frontend mlir examples/simple.cadl            # Convert to MLIR (stdout)
+  aps-frontend mlir examples/simple.cadl -o out.mlir # Convert to MLIR file
+  aps-frontend mlir examples/simple.cadl --no-verify # Skip MLIR verification
+  aps-frontend cadl2c examples/simple.cadl          # Convert to high-level C
+  aps-frontend encoding examples/simple.cadl       # Extract encoding to JSON
+
+Debug examples (environment variables):
+  APS_DEBUG=INFO pixi run mlir file.cadl                    # Set INFO level
+  APS_DEBUG=DEBUG pixi run mlir file.cadl                   # Enable DEBUG level
+  APS_DEBUG_MODULE=loop_transform=DEBUG pixi run mlir file.cadl  # Per-module debug
+        ''',
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+
+    # Parse subcommand
+    parse_parser = subparsers.add_parser(
+        'parse',
+        help='Parse CADL file and display AST',
+        description='Parse a CADL file and display the resulting Abstract Syntax Tree'
+    )
+    parse_parser.add_argument('input', help='Input CADL file')
+    parse_parser.add_argument(
+        '--summary', '-s',
+        action='store_true',
+        help='Show summary instead of full AST'
+    )
+
+    # MLIR subcommand
+    mlir_parser = subparsers.add_parser(
+        'mlir',
+        help='Convert CADL file to MLIR',
+        description='Convert a CADL file to MLIR intermediate representation'
+    )
+    mlir_parser.add_argument('input', help='Input CADL file')
+    mlir_parser.add_argument(
+        '-o', '--output',
+        help='Output MLIR file (default: print to stdout)'
+    )
+    mlir_parser.add_argument(
+        '--no-verify',
+        action='store_true',
+        help='Skip MLIR verification step'
+    )
+
+    # C transpiler subcommand
+    cadl2c_parser = subparsers.add_parser(
+        'cadl2c',
+        help='Convert CADL file to high-level C code',
+        description='Generate pure C code with high-level semantics from a CADL file'
+    )
+    cadl2c_parser.add_argument('input', help='Input CADL file')
+    cadl2c_parser.add_argument(
+        '-o', '--output',
+        help='Output C file (default: print to stdout)'
+    )
+
+    # Encoding extraction subcommand
+    encoding_parser = subparsers.add_parser(
+        'encoding',
+        help='Extract instruction encoding to JSON',
+        description='Extract opcode, funct3, funct7 from CADL file to JSON format'
+    )
+    encoding_parser.add_argument('input', help='Input CADL file')
+    encoding_parser.add_argument(
+        '-o', '--output',
+        help='Output JSON file (default: print to stdout)'
+    )
+
+    # Version info
+    parser.add_argument(
+        '--version', '-v',
+        action='version',
+        version='aps-frontend 1.0.0'
+    )
+
+    args = parser.parse_args()
+
+    # Level mapping
+    level_map = {
+        'DEBUG': DebugLevel.DEBUG,
+        'INFO': DebugLevel.INFO,
+        'WARNING': DebugLevel.WARNING,
+        'ERROR': DebugLevel.ERROR,
+        'CRITICAL': DebugLevel.CRITICAL,
+        'OFF': DebugLevel.OFF,
+    }
+
+    # Configure debug system - Environment variables first, then CLI args override
+    debug_level_set = False
+
+    # Check APS_DEBUG environment variable
+    aps_debug_env = os.environ.get('APS_DEBUG')
+    if aps_debug_env:
+        aps_debug_env = aps_debug_env.upper()
+        if aps_debug_env in level_map:
+            set_debug_level(level_map[aps_debug_env])
+            debug_level_set = True
+        else:
+            print(f"Warning: Invalid APS_DEBUG value '{aps_debug_env}', ignoring")
+
+    # Set default if nothing specified
+    if not debug_level_set:
+        set_debug_level(DebugLevel.WARNING)
+
+    # Configure per-module debug levels from environment
+    aps_debug_module_env = os.environ.get('APS_DEBUG_MODULE')
+    if aps_debug_module_env:
+        for module_spec in aps_debug_module_env.split(','):
+            module_spec = module_spec.strip()
+            if '=' in module_spec:
+                module_name, level_str = module_spec.split('=', 1)
+                level_str = level_str.upper()
+                if level_str in level_map:
+                    set_module_debug_level(module_name, level_map[level_str])
+                else:
+                    print(f"Warning: Invalid debug level '{level_str}' in APS_DEBUG_MODULE, ignoring")
+            else:
+                print(f"Warning: Invalid module spec '{module_spec}' in APS_DEBUG_MODULE, expected MODULE=LEVEL")
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    if args.command == 'parse':
+        parse_cadl(args.input, args.summary)
+    elif args.command == 'mlir':
+        convert_to_mlir(args.input, args.output, not args.no_verify)
+    elif args.command == 'cadl2c':
+        convert_to_c(args.input, args.output)
+    elif args.command == 'encoding':
+        extract_encoding(args.input, args.output)
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

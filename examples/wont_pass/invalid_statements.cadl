@@ -1,0 +1,32 @@
+// Invalid statement structures
+
+rtype test1(rs1: u5, rd: u5) {
+    if x > 5 {  // Missing condition parentheses and else clause
+        _irf[rd] = x;
+}
+
+rtype test2(rs1: u5, rd: u5) {
+    while {  // Missing condition
+        _irf[rd] = 42;
+    }
+}
+
+rtype test3(rs1: u5, rd: u5) {
+    with  // Missing bindings and body
+    _irf[rd] = 42;
+}
+
+rtype test4(rs1: u5, rd: u5) {
+    return;  // Missing return expression
+}
+
+rtype test5(rs1: u5, rd: u5) {
+    match x {  // Missing arms
+    }
+    _irf[rd] = 42;
+}
+
+rtype test6(rs1: u5, rd: u5) {
+    sel {  // Missing select arms
+    _irf[rd] = 42;
+}

@@ -1,0 +1,21 @@
+// int loop(int a, int b) {
+//     volatile int c = 0;
+//     for (int i = 0; i < 10; i++) {
+//         c += (a * b);
+//     }
+//     return c;
+// }
+
+rtype loop(a: u5, b: u5, c: u5) {
+    let r1: u32 = _irf[a];
+    let r2: u32 = _irf[b];
+    
+    with 
+        r3: u32 = (0, r3_)
+        i: u32 = (0, i_)
+    do {
+        let r3_: u32 = r3 + (r1 * r2);
+        let i_: u32 = i + 1;
+    } while (i_ < 10);
+    _irf[c] = r3;
+}

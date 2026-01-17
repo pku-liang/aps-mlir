@@ -1,0 +1,6 @@
+{
+  "vfpsmax_v": {
+    "opcode": "0x2B",
+    "funct7": "0x2A"
+  }
+}

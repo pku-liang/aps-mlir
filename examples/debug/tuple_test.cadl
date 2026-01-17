@@ -1,0 +1,4 @@
+rtype tuple_test(rs1: u5, rd: u5) {
+    let single: u32 = (r1 + r2);     // Single expr in parens -> BinaryExpr  
+    let tuple: u32 = (r1, r2);       // Multiple exprs in parens -> TupleExpr
+}

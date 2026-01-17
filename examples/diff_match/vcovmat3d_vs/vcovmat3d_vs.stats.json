@@ -1,0 +1,16 @@
+{
+  "internal_rewrites": 23,
+  "external_rewrites": [
+    {
+      "pass": "loop-tile",
+      "parameter": "tile_size",
+      "value": 4
+    }
+  ],
+  "custom_rewrites": 17,
+  "egraph_statistics": {
+    "num_eclasses": 157,
+    "num_enodes": 504
+  },
+  "time_elapsed": 2.657409906387329
+}

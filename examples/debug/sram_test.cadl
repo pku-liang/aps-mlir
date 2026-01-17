@@ -1,0 +1,20 @@
+#[impl("1rw")]
+static mem_a: [u32; 2];
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000000)]
+rtype sram_test(rs1: u5, rs2: u5, rd: u5) {
+    let r1: u32 = _irf[rs1];
+    let r2: u32 = _irf[rs2];
+    mem_a[0 +: ] = _burst_read[r1 +: 2];
+    
+    let a: u32 = mem_a[0];
+    let b: u32 = mem_a[1];
+    let c: u32 = a + 1;
+    let d: u32 = b + 1;
+    mem_a[0] = c;
+    mem_a[1] = d;
+
+    _burst_write[r2 +: 2] = mem_a[0 +: ];
+    _irf[rd] = 42;
+}

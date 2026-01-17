@@ -1,0 +1,16 @@
+// Mismatched brackets and braces
+
+rtype test1(rs1: u5, rd: u5) {
+    let x: [u32; 8] = _mem[0;  // Missing closing bracket
+    _irf[rd] = x;
+}
+
+rtype test2(rs1: u5, rd: u5) {
+    let x: u32 = _irf[rs1];
+    _irf[rd] = x;
+// Missing closing brace
+
+rtype test3(rs1: u5, rd: u5) {
+    let x: u32 = _irf[rs1]];  // Extra closing bracket
+    _irf[rd] = x;
+}

@@ -1,0 +1,228 @@
+// CADL Grammar for Lark Parser
+// Converted from LALRPOP grammar
+
+%import common.WS
+%import common.NUMBER
+%import common.SIGNED_NUMBER
+%import common.ESCAPED_STRING
+%ignore WS
+
+// Terminals - Basic tokens
+IDENTIFIER: /[a-zA-Z_][a-zA-Z0-9_]*/
+VARTYPE: /[fui]([1-9][0-9]*)c*|usize/
+NUMBER_LIT: /-?[0-9]+(_[fui]([1-9][0-9]*))?/
+            | /-?0([sS])?x[0-9a-fA-F]+(_[ui]([1-9][0-9]*))?/
+            | /-?0([sS])?b[01]+(_[ui]([1-9][0-9]*))?/
+            | /-?0([sS])?o[0-7]+(_[ui]([1-9][0-9]*))?/
+            | /-?[0-9]+'([sS])?[bB][01]+(_[ui]([1-9][0-9]*))?/
+            | /-?[0-9]+'([sS])?[oO][0-7]+(_[ui]([1-9][0-9]*))?/
+            | /-?[0-9]+'([sS])?[dD][0-9]+(_[ui]([1-9][0-9]*))?/
+            | /-?[0-9]+'([sS])?[hH][0-9a-fA-F]+(_[ui]([1-9][0-9]*))?/
+            | /-?[0-9]+\.[0-9]+([eE][+-]?[0-9]+)?(_[f]([1-9][0-9]*))?/
+
+STRING_LIT: /"[^"]*"/
+
+// Keywords
+KW_STATIC: "static"
+KW_RTYPE: "rtype"
+KW_FLOW: "flow"
+KW_INSTANCE: "Instance"
+KW_LET: "let"
+KW_IF: "if"
+KW_ELSE: "else"
+KW_WHILE: "while"
+KW_WITH: "with"
+KW_DO: "do"
+KW_IN: "in"
+KW_SPAWN: "spawn"
+KW_RETURN: "return"
+KW_BREAK: "break"
+KW_CONTINUE: "continue"
+KW_SEL: "sel"
+KW_TRUE: "true"
+KW_FALSE: "false"
+KW_REGFILE: "regfile"
+
+// Cast operators
+SIGNED_CAST: "$signed"
+UNSIGNED_CAST: "$unsigned"
+F32_CAST: "$f32"
+F64_CAST: "$f64"
+INT_CAST: "$int"
+UINT_CAST: "$uint"
+
+// Operators
+OP_PLUS: "+"
+OP_MINUS: "-"
+OP_MULTIPLY: "*"
+OP_DIVIDE: "/"
+OP_REMAINDER: "%"
+OP_EQUAL: "=="
+OP_NOT_EQUAL: "!="
+OP_LESS_THAN: "<"
+OP_LESS_THAN_OR_EQUAL: "<="
+OP_GREATER_THAN: ">"
+OP_GREATER_THAN_OR_EQUAL: ">="
+OP_AND: "&&"
+OP_OR: "||"
+OP_NOT: "!"
+OP_BIT_AND: "&"
+OP_BIT_OR: "|"
+OP_BIT_NOT: "~"
+OP_BIT_XOR: "^"
+OP_LSHIFT: "<<"
+OP_RSHIFT: ">>"
+
+// Punctuation
+ASSIGN: "="
+LBRACE: "{"
+RBRACE: "}"
+LPAREN: "("
+RPAREN: ")"
+LBRACKET: "["
+RBRACKET: "]"
+LBRACKET_BRACKET: "[["
+RBRACKET_BRACKET: "]]"
+ARROW: "->"
+FAT_ARROW: "=>"
+COMMA: ","
+COLON: ":"
+SEMICOLON: ";"
+AT: "@"
+HASH: "#"
+
+// Start rule
+start: proc
+
+// Main processor structure
+proc: proc_part*
+
+proc_part: regfile
+         | flow
+         | static
+
+// Data types
+data_type: VARTYPE                                      -> single_type
+         | LBRACKET VARTYPE (SEMICOLON NUMBER_LIT)* RBRACKET -> array_type
+         | KW_INSTANCE                                  -> instance_type
+
+compound_type: data_type                               -> basic_type
+
+// Function arguments
+fn_arg: IDENTIFIER COLON compound_type
+
+fn_arg_list: fn_arg (COMMA fn_arg)*
+
+// With binding for loops
+with_binding: IDENTIFIER COLON VARTYPE ASSIGN LPAREN expr? COMMA expr? RPAREN
+
+// Static variable
+static: attribute* KW_STATIC IDENTIFIER COLON data_type (ASSIGN expr)? SEMICOLON
+
+// Statements
+stmt: expr SEMICOLON                                   -> expr_stmt
+    | KW_LET? expr (COLON data_type)? ASSIGN expr SEMICOLON -> assign_stmt
+    | KW_RETURN expr_list SEMICOLON                   -> return_stmt
+    | LBRACKET expr RBRACKET COLON stmt               -> guard_stmt
+    | KW_WITH with_binding* KW_DO body KW_WHILE expr SEMICOLON -> do_while_stmt
+    | LBRACKET_BRACKET IDENTIFIER (LPAREN expr RPAREN)? RBRACKET_BRACKET -> directive_stmt
+    | KW_SPAWN LBRACE stmt* RBRACE                    -> spawn_stmt
+    | static                                          -> static_stmt
+
+// Body (either empty or block)
+body: SEMICOLON                                        -> empty_body
+    | LBRACE stmt* RBRACE                             -> block_body
+
+// Expression list
+expr_list: expr (COMMA expr)*
+
+// Attributes
+attribute: HASH LBRACKET IDENTIFIER RBRACKET                                    -> simple_attr
+         | HASH LBRACKET IDENTIFIER LPAREN attr_expr RPAREN RBRACKET            -> param_attr
+
+// Attribute expressions (allow array literals in addition to regular expressions)
+?attr_expr: expr
+          | LBRACKET attr_expr_list RBRACKET                                    -> array_literal
+
+attr_expr_list: attr_expr (COMMA attr_expr)*
+
+// Flow definition
+flow: attribute* KW_FLOW IDENTIFIER LPAREN fn_arg_list? RPAREN body     -> default_flow
+    | attribute* KW_RTYPE IDENTIFIER LPAREN fn_arg_list? RPAREN body    -> rtype_flow
+
+// Regfile definition
+regfile: KW_REGFILE IDENTIFIER LPAREN NUMBER_LIT COMMA NUMBER_LIT RPAREN SEMICOLON
+
+// Expression hierarchy (from lowest to highest precedence, matching LALRPOP)
+?expr: logical_or_expr
+
+?logical_or_expr: logical_or_expr OP_OR bitwise_or_expr     -> or_op
+                | bitwise_or_expr
+
+?bitwise_or_expr: bitwise_or_expr OP_BIT_OR bitwise_xor_expr -> bit_or_op
+                | bitwise_xor_expr
+
+?bitwise_xor_expr: bitwise_xor_expr OP_BIT_XOR eq_expr -> bit_xor_op
+                 | eq_expr
+
+?bitwise_and_expr: bitwise_and_expr OP_BIT_AND rel_expr -> bit_and_op
+                 | bitwise_and_expr OP_AND rel_expr -> and_op
+                 | rel_expr
+
+?eq_expr: eq_expr OP_EQUAL bitwise_and_expr     -> eq_op
+        | eq_expr OP_NOT_EQUAL bitwise_and_expr -> ne_op
+        | bitwise_and_expr
+
+?rel_expr: rel_expr OP_LESS_THAN shift_expr           -> lt_op
+         | rel_expr OP_LESS_THAN_OR_EQUAL shift_expr  -> le_op
+         | rel_expr OP_GREATER_THAN shift_expr        -> gt_op
+         | rel_expr OP_GREATER_THAN_OR_EQUAL shift_expr -> ge_op
+         | shift_expr
+
+?shift_expr: shift_expr OP_LSHIFT add_expr    -> lshift_op
+           | shift_expr OP_RSHIFT add_expr    -> rshift_op
+           | add_expr
+
+?add_expr: add_expr OP_PLUS mul_expr     -> add_op
+         | add_expr OP_MINUS mul_expr    -> sub_op
+         | mul_expr
+
+?mul_expr: mul_expr OP_MULTIPLY unary_expr   -> mul_op
+         | mul_expr OP_DIVIDE unary_expr     -> div_op
+         | mul_expr OP_REMAINDER unary_expr  -> rem_op
+         | unary_expr
+
+?unary_expr: OP_MINUS postfix_expr       -> neg_op
+           | OP_NOT postfix_expr         -> not_op
+           | OP_BIT_NOT postfix_expr     -> bit_not_op
+           | postfix_expr
+
+?postfix_expr: postfix_expr LBRACKET expr_list RBRACKET                -> index_expr
+             | postfix_expr LBRACKET add_expr COLON add_expr RBRACKET  -> slice_expr
+             | postfix_expr LBRACKET add_expr OP_PLUS COLON add_expr? RBRACKET -> range_slice_expr
+             | primary_expr
+
+primary_expr: LPAREN expr_list RPAREN                      -> paren_expr
+            | NUMBER_LIT                                    -> number_lit
+            | KW_TRUE                                       -> true_lit
+            | KW_FALSE                                      -> false_lit
+            | STRING_LIT                                    -> string_lit
+            | IDENTIFIER                                    -> identifier
+            | IDENTIFIER LPAREN expr_list? RPAREN           -> call_expr
+            | SIGNED_CAST LPAREN expr RPAREN               -> signed_cast
+            | UNSIGNED_CAST LPAREN expr RPAREN             -> unsigned_cast
+            | F32_CAST LPAREN expr RPAREN                  -> f32_cast
+            | F64_CAST LPAREN expr RPAREN                  -> f64_cast
+            | INT_CAST LPAREN expr RPAREN                  -> int_cast
+            | UINT_CAST LPAREN expr RPAREN                 -> uint_cast
+            | KW_IF expr LBRACE expr RBRACE KW_ELSE LBRACE expr RBRACE -> if_expr
+            | KW_SEL LBRACE sel_arm+ RBRACE                 -> select_expr
+            | LBRACE expr_list RBRACE                       -> aggregate_expr
+
+sel_arm: expr COLON expr COMMA
+
+// Comments (ignored)
+COMMENT: /\/\/[^\n]*/
+       | /\/\*[^*]*\*+(?:[^\/*][^*]*\*+)*\//
+
+%ignore COMMENT

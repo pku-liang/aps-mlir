@@ -1,0 +1,18 @@
+// Test 5: Scalar-only operations (no burst, no arrays)
+// Tests: readrf as scalar (not array pointer), pure scalar computation
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000100)]
+rtype scalar_math(rs1: u5, rs2: u5, rd: u5) {
+    // Read scalar values
+    let a: u32 = _irf[rs1];
+    let b: u32 = _irf[rs2];
+
+    // Compute: (a + b) * (a - b)
+    let sum: u32 = a + b;
+    let diff: u32 = a - b;
+    let result: u32 = sum * diff;
+
+    // Return result
+    _irf[rd] = result;
+}

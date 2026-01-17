@@ -1,0 +1,7 @@
+// Test different assignment patterns
+
+rtype test(rs1: u5, rd: u5) {
+    let x: u32 = 42;     // Valid: let with explicit type
+    y = 24;              // Valid: assignment without let (type inference)
+    _irf[rd] = x + y;
+}

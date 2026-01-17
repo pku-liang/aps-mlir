@@ -1,0 +1,23 @@
+// Test Case 6: q15_mulr - Q15 fixed-point multiply with rounding
+// Formula: r = (x * y + (1 << 14)) >> 15
+// Q15 format: 1 sign bit + 15 fractional bits
+
+rtype q15_mulr(rs1: u5, rs2: u5, rd: u5) {
+    let x: i32 = _irf[rs1];
+    let y: i32 = _irf[rs2];
+
+    // Q15 multiply: extend to 64-bit, multiply, add rounding, shift
+    let x64: i64 = x;
+    let y64: i64 = y;
+    let prod: i64 = x64 * y64;
+
+    // Add rounding constant (1 << 14)
+    let round: i64 = 16384;  // 1 << 14
+    let prod_rounded: i64 = prod + round;
+
+    // Shift right by 15 bits
+    let r64: i64 = prod_rounded >> 15;
+    let r: i32 = r64;
+
+    _irf[rd] = r;
+}

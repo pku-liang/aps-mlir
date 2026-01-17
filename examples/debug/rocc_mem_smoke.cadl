@@ -1,0 +1,15 @@
+// Test 5: Scalar-only operations (no burst, no arrays)
+// Tests: readrf as scalar (not array pointer), pure scalar computation
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000100)]
+rtype rocc_mem_test(rs1: u5, rs2: u5, rd: u5) {
+    // Read scalar values
+    let a: u32 = _irf[rs1];
+    let b: u32 = _irf[rs2];
+
+    let m: u32 = _mem[a];
+
+    // Return result
+    _irf[rd] = m * b * b;
+}

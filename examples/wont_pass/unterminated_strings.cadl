@@ -1,0 +1,18 @@
+// Unterminated strings and comments
+
+rtype test1(rs1: u5, rd: u5) {
+    let s: string = "unterminated string;  // Missing closing quote
+    _irf[rd] = 42;
+}
+
+rtype test2(rs1: u5, rd: u5) {
+    let s: string = "another unterminated
+    _irf[rd] = 42;  // String continues to next line
+}
+
+/* This is an unterminated
+   block comment
+rtype test3(rs1: u5, rd: u5) {
+    let x: u32 = 42;
+    _irf[rd] = x;
+}

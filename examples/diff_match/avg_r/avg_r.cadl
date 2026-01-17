@@ -1,0 +1,16 @@
+// Test Case 5: avg_r - Average with rounding
+// Formula: r = (x & y) + ((x ^ y) >> 1)
+// Equivalent to: (x + y + 1) >> 1
+
+rtype avg_r(rs1: u5, rs2: u5, rd: u5) {
+    let x: u32 = _irf[rs1];
+    let y: u32 = _irf[rs2];
+
+    // Compute average with rounding using bit tricks
+    let and_xy: u32 = x & y;
+    let xor_xy: u32 = x ^ y;
+    let shift: u32 = xor_xy >> 1;
+    let r: u32 = and_xy + shift;
+
+    _irf[rd] = r;
+}

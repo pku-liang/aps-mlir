@@ -1,0 +1,10 @@
+// Missing semicolon errors
+
+rtype test1(rs1: u5, rd: u5) {
+    let x: u32 = 42  // Missing semicolon
+    _irf[rd] = x;
+}
+
+static counter: u32 = 0  // Missing semicolon
+
+regfile rf(32, 16)  // Missing semicolon

@@ -1,0 +1,24 @@
+// rtype func1(a: u5, b: u5, c: u5) {
+//     let r1: u32 = _irf[a];
+//     let r2: u32 = _irf[b];
+//     let r1_e: u64 = r1;
+//     _irf[c] = r1_e[61:30];
+// }
+
+// rtype func2(a: u5, b: u5, c: u5) {
+//     let r1: u32 = _irf[a];
+//     let r2: u32 = _irf[b];
+//     let r1_s: u16 = r1[15:0];
+//     let r3: u32 = r1_s + r2;
+//     let r4: u16 = r3;
+//     _irf[c] = r4;
+// }
+
+rtype func3(a: u5, b: u5, c: u5) {
+    let r1: u32 = _irf[a];
+    let r2: u32 = _irf[b];
+    let r1_s: i32 = r1;
+    let r2_s: i32 = r2;
+    let r3: i64 = r1_s >> r2_s;
+    _irf[c] = r3;
+}

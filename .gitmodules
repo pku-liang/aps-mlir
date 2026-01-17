@@ -1,0 +1,7 @@
+[submodule "circt"]
+  path = circt
+	url = https://github.com/arch-of-shadow/circt-cmt2.git
+[submodule "thirdparty/chipyard"]
+	path = thirdparty/chipyard
+	url = git@github.com:pku-liang/aps-chipyard.git
+	branch = aps-mlir

@@ -1,0 +1,22 @@
+// File with multiple types of errors mixed together
+
+#[opcode(7'b0101011
+#[funct7(  // Multiple malformed attributes
+rtype 99invalid(rs1: u5, rs2 u5) {  // Invalid name and missing colon
+    let x u32 = _irf[rs1] +;  // Missing colon and incomplete expression
+    let y: = 42  // Missing type and semicolon
+    _irf[rd] = (x, y;  // Missing closing paren
+}
+
+static counter u32  // Missing colon and semicolon
+
+fn helper(a: u32) -> {  // Missing return type
+    return a +  // Incomplete expression
+}
+
+regfile rf(, 16);  // Missing first parameter
+
+/* Unterminated block comment
+rtype never_reached(rs1: u5, rd: u5) {
+    _irf[rd] = 42;
+}

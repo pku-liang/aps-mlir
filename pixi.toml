@@ -1,0 +1,129 @@
+[workspace]
+authors = ["uv-xiao <shallwexiao@gmail.com>"]
+channels = ["weijiepeng", "conda-forge"]
+name = "aps-mlir"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[activation.env]
+CIRCT_COMMIT = "cmt2-edsl"
+PYTHONPATH = "${PIXI_PROJECT_ROOT}/build/python_packages/circt_core:${PYTHONPATH}"
+OR_TOOLS_PATH = "${PIXI_PROJECT_ROOT}/install"
+PATH = "${PIXI_PROJECT_ROOT}/circt/build/bin:${PATH}:${PIXI_PROJECT_ROOT}/install/bin:${PIXI_PROJECT_ROOT}/thirdparty/polygeist"
+MEGGINCLUDE = "${PIXI_PROJECT_ROOT}/megg/megg_include" # put extra include files for megg here
+# Chipyard is not compatable with new firtool, so we have to use a pre-built binary from github release
+LEGACY_FIRTOOL_PATH = "https://github.com/llvm/circt/releases/download/firtool-1.75.0/firrtl-bin-linux-x64.tar.gz"
+LEGACY_FIRTOOL = "${PIXI_PROJECT_ROOT}/install/firtool-1.75.0/bin/firtool" # this is for chipyard compatibility
+# tutorial docker environment
+APS = "${PIXI_PROJECT_ROOT}"
+APS_CHIPYARD = "${PIXI_PROJECT_ROOT}/../aps-mlir-chipyard"
+APS_SIM = "${APS_CHIPYARD}/sims/verilator"
+APS_VLSI = "${APS_CHIPYARD}/nextvlsi"
+
+[tasks]
+
+setup-ortools = { cmd = "pixi run chmod +x scripts/setup-ortools.sh && pixi run scripts/setup-ortools.sh", inputs = ["scripts/setup-ortools.sh"], outputs = ["__setup-ortools.success"] }
+setup-firtool = { cmd = "mkdir -p $PIXI_PROJECT_ROOT/install && cd $PIXI_PROJECT_ROOT/install && wget -O firtool.tar.gz $LEGACY_FIRTOOL_PATH && tar xvzf firtool.tar.gz && rm firtool.tar.gz", outputs = ["__setup-firtool.success" ]}
+setup-yosys-slang = { cmd = "cd $PIXI_PROJECT_ROOT/scripts && bash setup-yosys-slang.sh", outputs = ["__setup-yosys-slang.success"] }
+setup = { cmd = "pixi run chmod +x scripts/setup.sh && pixi run scripts/setup.sh $CIRCT_COMMIT", inputs = ["scripts/setup.sh","__setup-ortools.success"], outputs = ["__setup.success"] }
+
+mkdir_build = { cmd = "mkdir -p build", outputs = ["build"] }
+build = { cmd = "pixi run cmake .. -G Ninja -DCMAKE_CXX_FLAGS=\"-fuse-ld=lld\" -DCMAKE_BUILD_TYPE=Debug  && ninja", depends-on = ["mkdir_build"], cwd = "build"}
+clean = { cmd = "rm -rf build"}
+
+fix-verilator = { cmd = "sed -i -e 's|^AR *= *.*|AR = /usr/bin/ar|' -e 's|^CXX *= *.*|CXX = /usr/bin/g++|' -e 's|^LINK *= *.*|LINK = /usr/bin/g++|' $CONDA_PREFIX/share/verilator/include/verilated.mk" }
+
+# don't run this in docker
+setup-chipyard = { cmd = "cd $PIXI_PROJECT_ROOT && git submodule update --init && cd $PIXI_PROJECT_ROOT/thirdparty/chipyard && bash ./scripts/init-submodules-no-riscv-tools-nolog.sh && bash ./scripts/build-toolchain-extra-32.sh -p $RISCV", outputs = ["__setup-chipyard.success"] }
+
+# We assume the user has done running "init-submodules" provided by chipyard
+setup-riscv-extra = { cmd = "cd $PIXI_PROJECT_ROOT/thirdparty/chipyard && bash ./scripts/build-toolchain-extra-32.sh -p $RISCV", outputs = ["__setup-chipyard.success"] }
+
+# Python execution with CIRCT bindings
+python = { cmd = "python" }
+pytest = { cmd = "python -m pytest -s -v" }
+silicon = { cmd = "python dev_scripts/silicon.py" }
+
+# APS Tools
+aps-frontend = { cmd = "python aps-frontend" }
+parse = { cmd = "python aps-frontend parse" }
+parse-summary = { cmd = "python aps-frontend parse --summary" }
+mlir-std = { cmd = "bash scripts/mlir-std.sh" }
+cadl2c = { cmd = "python aps-frontend cadl2c" }
+
+# Tutorial Demo
+tutorial-compiler-demo = { cmd = "streamlit run tutorial/compiler/hands_on.py --server.headless true" }
+
+[tasks.mlir]
+args = ["cadl", "apsir"]
+cmd =  "python aps-frontend mlir {{ cadl }} > {{ apsir }}"
+
+[tasks.opt]
+args = ["apsir", "apsir_opt"]
+cmd = "$PIXI_PROJECT_ROOT/build/tools/aps-opt/aps-e2e --clock 8.0 -i {{ apsir }} -o {{ apsir_opt }}"
+
+[tasks.opt-debug]
+args = ["apsir", "apsir_opt", "apsir_log"]
+cmd = "$PIXI_PROJECT_ROOT/build/tools/aps-opt/aps-e2e -i {{ apsir }} -o {{ apsir_opt }} --print-ir-after-all 2> {{ apsir_log }}"
+
+[tasks.sv]
+args = ["apsir", "sv"]
+cmd = "./circt/build/bin/circt-opt {{ apsir }} --lower-cmt2-to-firrtl | ./circt/build/bin/firtool -format=mlir -o {{ sv }}"
+
+[tasks.cmt2main]
+args = ["apsir", "mainir"]
+cmd = "sed -n '/cmt2\\.module @main(%clk: !firrtl\\.clock, %rst: !firrtl\\.uint<1>)/,/^}/p' {{ apsir }} | sed '/cmt2\\.module @.*main(/!{/cmt2\\.module @/,/^}/d}' > {{ mainir }}"
+
+[tasks.compile]
+args = ["cadl", "test_c", "output"]
+cmd = "bash $PIXI_PROJECT_ROOT/scripts/compile.sh {{ cadl }} {{ test_c }} {{ output }}"
+
+[tasks.compile-handson]
+args = ["cadl", "test_c", "output"]
+cmd = "bash $PIXI_PROJECT_ROOT/scripts/compile.sh {{ cadl }} {{ test_c }} {{ output }} --handson"
+
+[tasks.compile-native]
+args = ["test_c", "output"]
+cmd = "riscv32-unknown-elf-gcc -std=gnu99 -O3 -Wall -Wextra -fno-common -fno-builtin-printf -march=rv32imaf_zicsr_zifencei -mabi=ilp32f -mcmodel=medany -specs=htif_nano.specs -static -T htif.ld -I$MEGGINCLUDE -o {{ output }} {{ test_c }} -lm"
+
+[dependencies]
+cmake = ">=4.1.1,<5"
+python = ">=3.12,<3.13"
+zlib = ">=1.3.1,<2"
+make = ">=4.4.1,<5"
+pyyaml = ">=6.0.2,<7"
+clang = ">=21.1.0,<21.1.5"
+lld = ">=21.1.0,<22"
+nanobind = "2.4.0.*"
+numpy = ">=2.3.3,<3"
+pybind11 = ">=2.10.0,<=2.13.6"
+ml_dtypes = ">=0.5.0,<=0.6.0"
+psutil = ">=7.0.0,<8"
+verilator = ">=5.034"
+setuptools = ">=80.9.0,<81"
+setuptools_scm = ">=9.2.0,<10"
+ninja = ">=1.13.1,<2"
+z3prover = ">=4.15.3,<5"
+sbt = ">=1.10.2,<2"
+openjdk = "20.*"
+lp_solve = ">=5.5.2.11,<6"
+nlohmann_json = ">=3.12.0,<4"
+pip = "*"
+egglog = ">=11.2.0"
+streamlit = ">=1.28.0"
+black = "<=25.1.0"
+pytokens = "*"
+riscv-tools = "1.0.6.*"
+iverilog = ">=11.0,<12"
+yosys = ">=0.50,<0.51"
+jq = ">=1.8.1,<2"
+
+[pypi-dependencies]
+lark = ">=1.1.0"
+dataclasses-json = ">=0.6.0"
+pytest = ">=8.4.2,<9"
+pytest-cov = ">=7.0.0, <8"
+isort = ">=6.0.1, <7"
+mypy = ">=1.18.2, <2"
+ruff = ">=0.8.0,<1"
+scour = ">=0.38.2"

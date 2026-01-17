@@ -1,0 +1,7 @@
+{
+  "q15_mulr": {
+    "opcode": "0x2B",
+    "funct3": "0x7",
+    "funct7": "0x29"
+  }
+}

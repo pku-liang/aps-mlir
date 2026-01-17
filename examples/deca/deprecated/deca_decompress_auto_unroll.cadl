@@ -1,0 +1,96 @@
+// DECA Decompression - Auto Unroll Version
+// Uses [[unroll]] directive for cleaner code
+
+// ============================================================================
+// Memory Buffers
+// ============================================================================
+
+static values: [i64; 8];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static dense_values: [i8; 32];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static decompressed_weights: [i16; 32];
+
+static vidx: u32 = 0;
+
+// ============================================================================
+// DECA Decompression - Auto Unroll Version
+// ============================================================================
+
+#[opcode(7'b0101011)]
+#[funct7(7'b0000101)]
+rtype deca_decompress_u1(rs1: u5, rs2: u5, rd: u5) {
+    let base_addr: u32 = _irf[rs1];
+    let out_addr: u32 = _irf[rs2];
+    vidx = 0;
+
+    // Burst read compressed data
+    values[0 +: ] = _burst_read[base_addr +: 8];
+    let bitmask: u32 = _mem[base_addr + 64];
+    let global_scale: i16 = _mem[base_addr + 68];
+
+    // ========================================================================
+    // Stage 1: Sparse-to-Dense Expansion (Auto Unroll Version)
+    // Process all 32 elements in a single loop with [[unroll]] directive
+    // ========================================================================
+
+    [[unroll(32)]]
+    with idx: u32 = (0, idx_) do {
+        // Calculate which byte and bit in the bitmask
+        let byte_idx: u32 = idx >> 3;  // idx / 8
+        let bit_in_byte: u32 = idx & 7;  // idx % 8
+
+        // Extract the corresponding byte from bitmask
+        let mask_byte: u8 = sel {
+            byte_idx == 0: bitmask[7:0],
+            byte_idx == 1: bitmask[15:8],
+            byte_idx == 2: bitmask[23:16],
+            byte_idx == 3: bitmask[31:24],
+        };
+
+        // Check if this element is non-zero
+        let is_nonzero: u1 = (mask_byte >> bit_in_byte)[0:0];
+
+        // Read from sparse values if non-zero
+        let zero_i8: i8 = 0;
+        let value_idx: u32 = vidx >> 3;  // vidx / 8
+        let value_offset: u32 = vidx & 7;  // vidx % 8
+
+        let val_double_word: i64 = values[value_idx];
+        let val: i8 = (val_double_word >> (value_offset * 8))[7:0];
+
+        // Write to dense array
+        dense_values[idx] = if is_nonzero { val } else { zero_i8 };
+
+        // Update sparse index (increment if this was non-zero)
+        vidx = vidx + (if is_nonzero {1} else {0});
+
+        let idx_: u32 = idx + 1;
+    } while (idx_ < 32);
+
+    // ========================================================================
+    // Stage 2: Fully Affine Decompression
+    // ========================================================================
+    [[unroll(4)]]
+    with idx: u32 = (0, idx_) do {
+        let val: i8 = dense_values[idx];
+
+        let val32: i32 = val;
+        let global_scale32: i32 = global_scale;
+        let mul_result: i32 = val32 * global_scale32;
+        let dequant: i16 = (mul_result >> 8)[15:0];
+
+        decompressed_weights[idx] = dequant;
+        let idx_: u32 = idx + 1;
+    } while (idx_ < 32);
+
+    // Burst write decompressed output
+    _burst_write[out_addr +: 64] = decompressed_weights[0 +: ];
+    _irf[rd] = 0;
+}

@@ -1,0 +1,368 @@
+// V3DDIST.VV - Vector 3D Distance Squared (Vector-Vector mode)
+// Computes squared Euclidean distance between pairs of 3D points
+// Formula: dist² = (x₂-x₁)² + (y₂-y₁)² + (z₂-z₁)²
+// NOTE: Using fixed-point arithmetic with u32 types
+
+// Static arrays for 3D point coordinates (Structure-of-Arrays layout)
+// Using 1rw port specification for single-port RAM
+// Cyclic partitioning with factor=16 for parallel vector lane access
+
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static points1_x: [u32; 32];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static points1_y: [u32; 32];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static points1_z: [u32; 32];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static points2_x: [u32; 32];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static points2_y: [u32; 32];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static points2_z: [u32; 32];
+
+// Output distance array - complete partitioning for parallel access
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static dist_out: [u32; 32];
+
+// V3DDIST.VV - Vector-Vector mode
+// Computes distances between VL pairs of 3D points
+#[opcode(7'b0001011)]
+#[funct7(7'b0101000)]
+rtype v3ddist_vv(rs1: u5, rs2: u5, rd: u5) {
+  let addr1: u32 = _irf[rs1];  // Base address for first point set
+  let out_addr: u32 = _irf[rs2];  // Base address for second point set
+  let vl: u32 = 32;             // Vector length
+
+  // Burst read point coordinates from memory (SOA layout)
+  points1_x[0 +: ] = _burst_read[addr1 +: 32];
+  points1_y[0 +: ] = _burst_read[addr1 + 128 +: 32];   // 16 words × 4 bytes
+  points1_z[0 +: ] = _burst_read[addr1 + 256 +: 32];  // 2 × 16 words × 4 bytes
+
+  points2_x[0 +: ] = _burst_read[addr1 + 384 +: 32];
+  points2_y[0 +: ] = _burst_read[addr1 + 512 +: 32];
+  points2_z[0 +: ] = _burst_read[addr1 + 640 +: 32];
+
+  // Compute distances for all vector elements with partial unrolling
+  [[unroll(8)]]
+  with i: u32 = (0, i_) do {
+    let x1: u32 = points1_x[i];
+    let y1: u32 = points1_y[i];
+    let z1: u32 = points1_z[i];
+
+    let x2: u32 = points2_x[i];
+    let y2: u32 = points2_y[i];
+    let z2: u32 = points2_z[i];
+
+    // Compute differences (unsigned subtraction)
+    let dx: u32 = x1 - x2;
+    let dy: u32 = y1 - y2;
+    let dz: u32 = z1 - z2;
+
+    // Compute squared distance
+    let dist_sq: u32 = dx * dx + dy * dy + dz * dz;
+
+    dist_out[i] = dist_sq;
+
+    let i_: u32 = i + 1;
+  } while (i_ < vl);
+
+  // Burst write results back to memory
+  _burst_write[out_addr +: 16] = dist_out[0 +: ];
+
+  _irf[rd] = 0;
+}
+
+// Accumulator for covariance matrix (6 unique elements of symmetric 3×3 matrix)
+// [C00, C01, C02, C11, C12, C22, count, reserved]
+#[partition_dim_array([0])]
+#[partition_factor_array([8])]
+#[partition_cyclic_array([1])]
+static cov_accum: [i32; 8];
+
+// VCOVMAT3D.VS - Vector-Scalar mode with accumulation
+// Computes accumulated covariance matrix for batch of points
+// rs1: base address for point cloud (SOA: X[16], Y[16], Z[16], cx, cy, cz)
+// rs2: output address for 8-element result (6 covariance + count + reserved)
+// rd: return value (writes result status to register file)
+#[opcode(7'b0101011)]
+#[funct7(7'b0101011)]
+rtype vcovmat3d_vs(rs1: u5, rs2: u5, rd: u5) {
+  let points_addr: u32 = _irf[rs1];    // Base address for point cloud + centroid
+  let out_addr: u32 = _irf[rs2];       // Output address
+
+  // Read centroid (3 scalar values after the 3 point arrays)
+  let cx: i32 = _mem[out_addr + 32];
+  let cy: i32 = _mem[out_addr + 36];
+  let cz: i32 = _mem[out_addr + 40];
+
+  // Initialize accumulator to zero
+  cov_accum[0] = 0;  // C00 (σ_xx)
+  cov_accum[1] = 0;  // C01 (σ_xy)
+  cov_accum[2] = 0;  // C02 (σ_xz)
+  cov_accum[3] = 0;  // C11 (σ_yy)
+  cov_accum[4] = 0;  // C12 (σ_yz)
+  cov_accum[5] = 0;  // C22 (σ_zz)
+  cov_accum[6] = 32; // Store count for averaging
+  cov_accum[7] = 0;  // Reserved
+
+  // Burst read all X coordinates (16 values in parallel)
+  // Only 1 DMA startup penalty for entire vector
+  points1_x[0 +: ] = _burst_read[points_addr +: 32];
+
+  // Burst read all Y coordinates
+  points1_y[0 +: ] = _burst_read[points_addr + 128 +: 32];
+
+  // Burst read all Z coordinates
+  points1_z[0 +: ] = _burst_read[points_addr + 256 +: 32];
+
+  // Process all 16 points with 4-way unrolling for throughput
+  // Each iteration computes outer product and accumulates
+  [[unroll(8)]]
+  with i: u8 = (0, i + 1)
+  do {
+    // Read point coordinates (all available in parallel due to partitioning)
+    let x: i32 = points1_x[i];
+    let y: i32 = points1_y[i];
+    let z: i32 = points1_z[i];
+
+    // Center point around centroid
+    let dx: i32 = x - cx;
+    let dy: i32 = y - cy;
+    let dz: i32 = z - cz;
+
+    // Compute and accumulate outer product (6 MAC operations in parallel)
+    // These are multiply-accumulate operations: cov += d * d
+    cov_accum[0] = cov_accum[0] + dx * dx;  // σ_xx
+    cov_accum[1] = cov_accum[1] + dx * dy;  // σ_xy
+    cov_accum[2] = cov_accum[2] + dx * dz;  // σ_xz
+    cov_accum[3] = cov_accum[3] + dy * dy;  // σ_yy
+    cov_accum[4] = cov_accum[4] + dy * dz;  // σ_yz
+    cov_accum[5] = cov_accum[5] + dz * dz;  // σ_zz
+  } while i + 1 < 32;
+
+  // Burst write accumulated covariance matrix (8 values including metadata)
+  _burst_write[out_addr +: 8] = cov_accum[0 +: ];
+
+  // Return success indicator (non-zero means valid result)
+  _irf[rd] = 1;
+}
+
+// VFPSMAX - Vector FPS Max-Reduce with Index Tracking
+// Finds the maximum value and its index in a vector
+// Used in Farthest Point Sampling (FPS) to select the farthest remaining point
+// Formula: (max_val, max_idx) = argmax(v[0..VL-1])
+// NOTE: Using fixed-point arithmetic with u32 types
+
+// Static arrays for distance tracking and intermediate results
+// Cyclic partitioning with factor=8 for parallel access
+// Double-buffering for reduction stages to avoid read-after-write conflicts
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static indices: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static reduction_vals_in: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static reduction_vals_out: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static reduction_idxs_in: [u32; 16];
+
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static reduction_idxs_out: [u32; 16];
+
+// VFPSMAX.V - Find maximum value and index in a vector
+// Returns max value in first element of vd, max index in first element of vid
+#[opcode(7'b1011011)]
+#[funct7(7'b0101010)]
+rtype vfpsmax_v(rs1: u5, rs2: u5, rd: u5) {
+  let addr: u32 = _irf[rs1];  // Base address of distance array
+  let out_addr: u32 = _irf[rs2];
+  let vl: u32 = 16;            // Vector length
+
+  // Burst read distances from memory into input buffer
+  reduction_vals_in[0 +: ] = _burst_read[addr +: 16];
+
+  // Initialize indices [0, 1, 2, ..., VL-1]
+  [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    indices[i] = i;
+    reduction_idxs_in[i] = i;
+    let i_: u32 = i + 1;
+  } while (i_ < 16);
+
+  // Stage 1: 8 comparisons (16→8) - Read from _in, write to _out
+  [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    let idx1: u32 = i * 2;
+    let idx2: u32 = i * 2 + 1;
+    let val1: u32 = reduction_vals_in[idx1];
+    let val2: u32 = reduction_vals_in[idx2];
+
+    // Use sentinel value 0 (minimum unsigned value)
+    let is_sentinel1: u1 = if val1 == 0 {1} else {0};
+    let is_sentinel2: u1 = if val2 == 0 {1} else {0};
+
+    let max_val: u32 = if is_sentinel1 {
+      val2
+    } else {
+      if is_sentinel2 {val1} else {if val1 > val2 {val1} else {val2}}
+    };
+
+    let reduction_idxs_in_idx2: u32 = reduction_idxs_in[idx2];
+    let reduction_idxs_in_idx1: u32 = reduction_idxs_in[idx1];
+    let max_idx: u32 = if is_sentinel1 {
+      reduction_idxs_in_idx2
+    } else {
+      if is_sentinel2 {
+        reduction_idxs_in_idx1
+      } else {
+        if val1 > val2 {reduction_idxs_in_idx1} else {reduction_idxs_in_idx2}
+      }
+    };
+
+    reduction_vals_out[i] = max_val;
+    reduction_idxs_out[i] = max_idx;
+    let i_: u32 = i + 1;
+  } while (i_ < 8);
+
+  // Stage 2: 4 comparisons (8→4) - Read from _out, write to _in
+  [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    let idx1: u32 = i * 2;
+    let idx2: u32 = i * 2 + 1;
+    let val1: u32 = reduction_vals_out[idx1];
+    let val2: u32 = reduction_vals_out[idx2];
+
+    let max_val: u32 = if val1 > val2 {val1} else {val2};
+
+    let reduction_idxs_out_idx1: u32 = reduction_idxs_out[idx1];
+    let reduction_idxs_out_idx2: u32 = reduction_idxs_out[idx2];
+    let max_idx: u32 = if val1 > val2 {reduction_idxs_out_idx1} else {reduction_idxs_out_idx2};
+
+    reduction_vals_in[i] = max_val;
+    reduction_idxs_in[i] = max_idx;
+    let i_: u32 = i + 1;
+  } while (i_ < 4);
+
+  // Stage 3: 2 comparisons (4→2) - Read from _in, write to _out
+  [[unroll(2)]]
+  with i: u32 = (0, i_) do {
+    let idx1: u32 = i * 2;
+    let idx2: u32 = i * 2 + 1;
+    let val1: u32 = reduction_vals_in[idx1];
+    let val2: u32 = reduction_vals_in[idx2];
+
+    let max_val: u32 = if val1 > val2 {val1} else {val2};
+
+    let reduction_idxs_in_idx1: u32 = reduction_idxs_in[idx1];
+    let reduction_idxs_in_idx2: u32 = reduction_idxs_in[idx2];
+    let max_idx: u32 = if val1 > val2 {reduction_idxs_in_idx1} else {reduction_idxs_in_idx2};
+
+    reduction_vals_out[i] = max_val;
+    reduction_idxs_out[i] = max_idx;
+    let i_: u32 = i + 1;
+  } while (i_ < 2);
+
+  // Stage 4: Final comparison (2→1) - Read from _out (simplified for testing)
+  let val1: u32 = reduction_vals_out[0];
+  let val2: u32 = reduction_vals_out[1];
+  let final_max: u32 = if val1 > val2 {val1} else {val2};
+
+  let reduction_idxs_out_0: u32 = reduction_idxs_out[0];
+  let reduction_idxs_out_1: u32 = reduction_idxs_out[1];
+  let final_idx: u32 = if val1 > val2 {reduction_idxs_out_0} else {reduction_idxs_out_1};
+
+  // Store results to register and memory
+  _irf[rd] = final_idx;
+
+  // Write max value and index to memory for further processing
+  _mem[out_addr] = final_max;
+  _mem[out_addr + 4] = final_idx;
+}
+
+// VGEMV3D - 3D General Matrix-Vector Multiply with Homogeneous Coordinates
+// Computes matrix-vector product: y = M × x for 4D homogeneous vectors
+// Formula: [y0, y1, y2, y3]ᵀ = M₄ₓ₄ × [x0, x1, x2, x3]ᵀ
+// Used for affine transformations, projections, coordinate transforms
+
+// Matrix storage - flattened 1D array (row-major: 16 elements)
+// Complete partitioning for parallel access to all 16 elements
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static matrix: [i32; 16];
+
+// Input vector - complete partitioning
+#[partition_dim_array([0])]
+#[partition_factor_array([4])]
+#[partition_cyclic_array([1])]
+static vec: [i32; 4];
+
+static result: [i32; 4];
+
+static acc: i32;
+// VGEMV3D.VV - Vector-Vector mode
+// Multiplies 4×4 matrix with 4D homogeneous vector
+#[opcode(7'b1111011)]
+#[funct7(7'b0110001)]
+rtype vgemv3d_vv(rs1: u5, rs2: u5, rd: u5) {
+  let addr: u32 = _irf[rs1];    // Address of matrix data and vector data
+  let out_addr: u32 = _irf[rs2];    // Address of output
+
+  // Burst read for flattened matrix (16 elements)
+  matrix[0 +: ] = _burst_read[addr +: 16];
+
+  // Burst read for vector (4 elements)
+  vec[0 +: ] = _burst_read[addr + 64 +: 4];
+
+  // Compute matrix-vector product: result[i] = Σⱼ matrix[i*4+j] * vec[j]
+  // [[unroll(4)]]
+  with i: u32 = (0, i_) do {
+    acc = 0;  // Reset accumulator for each row
+    [[unroll(4)]]
+    with j: u32 = (0, j_) do {
+      acc = acc + matrix[i * 4 + j] * vec[j];
+      let j_: u32 = j + 1;
+    } while (j_ < 4);
+    result[i] = acc;
+    let i_: u32 = i + 1;
+  } while (i_ < 4);
+
+  // Burst write result vector
+  _mem[out_addr] = result[0];
+  _mem[out_addr + 4] = result[1];
+  _mem[out_addr + 8] = result[2];
+  _mem[out_addr + 12] = result[3];
+
+  _irf[rd] = 0;
+}
